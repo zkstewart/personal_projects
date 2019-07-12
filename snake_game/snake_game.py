@@ -109,6 +109,8 @@ def tests():
         new_coord = [5,2]
         snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
         '''Outcome: snake extends in the right direction (tail does not move). Verdict: Success!'''
+        ## EDGE WRAPPING TEST 1
+        
 
 # Game-essential functions
 def find_centre_of_grid(x_size, y_size):
@@ -261,14 +263,17 @@ def snake_game(controller_func, output_disp_func, x_size, y_size, game_update_sp
                 if restart == True:
                         snake_game_state, snake_coords, snake_row_counts = snake_game_setup(x_size, y_size)
                         snake_game_state, food_coord = determine_food_location(snake_game_state, snake_row_counts, x_size, y_size)
-                        console_disp_func(snake_game_state, food_coord, snake_coords)
+                        food_game_state, flicker_game_state = convert_state_for_display(snake_game_state, food_coord, 'normal')
+                        food_present = True
                         restart = False
+                # Display the current game state
+                output_disp_func(food_game_state)
                 # Retrieve controller inputs
                 '''Game does not start until a direction is received'''
                 if previous_direction == None:
-                        controller_direction = keyboard_controller_func(wait_for_controller=True)
+                        controller_direction = controller_func(wait_for_controller=True)
                 else:
-                        controller_direction = keyboard_controller_func(input_time_period=game_update_speed, wait_for_controller=False)
+                        controller_direction = controller_func(input_time_period=game_update_speed, wait_for_controller=False)
                 # Determine the snake's direction based upon controller input
                 if controller_direction == None:
                         current_direction = previous_direction
@@ -313,20 +318,25 @@ def snake_game(controller_func, output_disp_func, x_size, y_size, game_update_sp
                 elif collision == True:
                         '''The snake head will always be where the collision occurred.'''
                         food_game_state, flicker_game_state = convert_state_for_display(snake_game_state, food_coord, 'collision', snake_coords[0])
+                        restart = True
                         # Mode 3; win
                 elif game_won == True:
                         food_game_state, flicker_game_state = convert_state_for_display(snake_game_state, food_coord, 'win')
+                # Flicker game state under collision or game win conditions
+                if collision == True or game_won == True:
+                        for count in range(3):
+                                output_disp_func(food_game_state)
+                                time.sleep(1)
+                                output_disp_func(flicker_game_state)
+                                time.sleep(0.5)
+                # Flicker game state under normal conditions
+                else:
+                        output_disp_func(flicker_game_state)
+                        time.sleep(0.5)
                 # Identify food position if relevant before loop begins again
                 if food_present == False:
                         snake_game_state, food_coord = determine_food_location(snake_game_state, snake_row_counts, x_size, y_size)
                         food_present = True
-
-def restart_snake_game(snake_game_state):
-        '''If this function is called, the game ended through failure or success.
-        The snake game state will be flashed on the display (all snake dots will
-        cycle on/off... food position will not flash) and a new snake game state
-        will be generated.
-        '''
 
 # Input/output-related functions
 def controller_func():
@@ -415,16 +425,44 @@ def convert_state_for_display(snake_game_state, food_coord, conversion_mode, col
                 flicker_game_state = ['1' * x_size] * y_size
         return food_game_state, flicker_game_state
 
-def console_disp_func(game_state):
-        this_is_incomplete = True
+def console_display_func(game_state):
+        import curses
+        '''As with keyboard_controller_func, this function is not intended to be
+        ported to the final product and thus packages have been imported here.
         
-def dotmatrix_disp_func(snake_game_state):
+        This function will (as of now) simply display the grid of 0's and 1's
+        as found in the game state to a Windows console, but I may modify it to
+        be more "graphical" in the future.
+        '''
+        # Init curses screen for display
+        global CURSES_SCREEN_INIT_STATUS, CURSES_SCREEN
+        try:
+                assert CURSES_SCREEN_INIT_STATUS
+        except:
+                CURSES_SCREEN = curses.initscr()
+                curses.noecho()
+                curses.cbreak() # test if this produces the wanted behaviour
+                CURSES_SCREEN_INIT_STATUS = 1
+        # Clear previous screen contents
+        CURSES_SCREEN.clear()
+        # Write game_state to screen
+        for row in game_state:
+                CURSES_SCREEN.addstr(row + '\n')
+        CURSES_SCREEN.refresh()
+        
+def dotmatrix_display_func(snake_game_state):
         this_is_incomplete = True
 
 # Main call
 def main():
-        this_is_incomplete = True
-        ##TBD
+        # Hard-coded values for basic game operation
+        '''More sophisticated option specification can come later, and it depends
+        on the platform and way in which this program is being run.'''
+        x_size = 8
+        y_size = 8
+        game_update_speed = 1
+        # Start main game loop
+        snake_game(keyboard_controller_func, console_display_func, x_size, y_size, game_update_speed)
 
 if __name__ == '__main__':
         main()
