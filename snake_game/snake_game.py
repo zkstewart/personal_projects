@@ -13,7 +13,7 @@ to simply left/right/up/down controls
 '''
 
 # Import modules
-import random, time
+import random, time, copy
 
 # Test scenarios (for debugging, can delete later)
 def tests():
@@ -41,9 +41,74 @@ def tests():
         new_coord = [2,8]
         snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
         '''Outcome: snake follows its own tail without eating it. Verdict: Success!'''
-        
         ## EATING BEHAVIOUR TEST 1
-        ### TBD: Test to show that eating food back-to-back will grow the snake appropriately
+        snake_game_state = \
+        ['00000000',
+         '00200000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000']
+        new_coord = [2,1]
+        snake_coords = [[2,2],[2,3],[2,4],[2,5],[2,6],[2,7],[2,8]]
+        snake_row_counts = [0, 0, 1, 1, 1, 1, 1, 1, 1]
+        extend_snake_next = False
+        food_present = True
+        snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
+        '''Outcome: snake moves up to eat the food, and the old tail position moves'''
+        snake_game_state = \
+        ['00200000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00000000'] # Simulate the food being placed in front of the new head position
+        new_coord = [2,0]
+        snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
+        '''Outcome: snake moves up to eat the food, and the snake extends simultaneously (tail does not move)'''
+        snake_game_state = \
+        ['00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00200000'] # Simulate the food being placed beind the tail / at the soon-to-be new head position
+        new_coord = [2,8]
+        snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
+        '''Outcome: same as before, and now we have a full column occupied by the snake. Verdict: Success!'''
+        ## MOVING RIGHT AND LEFT TEST 1
+        snake_game_state = \
+        ['00100000',
+         '00000000',
+         '00102000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000',
+         '00100000']
+        new_coord = [3,2]
+        snake_coords = [[2,2],[2,3],[2,4],[2,5],[2,6],[2,7],[2,8],[2,0]]
+        snake_row_counts = [1, 0, 1, 1, 1, 1, 1, 1, 1]
+        extend_snake_next = False
+        food_present = True
+        snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
+        '''Outcome: snake moves to the right, and the old tail position moves'''
+        new_coord = [4,2]
+        snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
+        '''Outcome: snake moves to the right and eats the food, and the old tail position moves'''
+        new_coord = [5,2]
+        snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
+        '''Outcome: snake extends in the right direction (tail does not move). Verdict: Success!'''
 
 # Game-essential functions
 def find_centre_of_grid(x_size, y_size):
@@ -189,14 +254,15 @@ def snake_game(controller_func, output_disp_func, x_size, y_size, game_update_sp
         extend_snake_next = False
         collision = False
         game_won = False
-        # Set up the snake game
-        snake_game_state, snake_coords, snake_row_counts = snake_game_setup(x_size, y_size)
+        restart = True
         # Core game loop
         while True:
-                # Identify food position
-                if food_present == False:
+                # Set up the snake game
+                if restart == True:
+                        snake_game_state, snake_coords, snake_row_counts = snake_game_setup(x_size, y_size)
                         snake_game_state, food_coord = determine_food_location(snake_game_state, snake_row_counts, x_size, y_size)
-                        food_present = True
+                        console_disp_func(snake_game_state, food_coord, snake_coords)
+                        restart = False
                 # Retrieve controller inputs
                 '''Game does not start until a direction is received'''
                 if previous_direction == None:
@@ -208,6 +274,18 @@ def snake_game(controller_func, output_disp_func, x_size, y_size, game_update_sp
                         current_direction = previous_direction
                 else:
                         current_direction = controller_direction
+                # Exclude incompatible direction inputs
+                '''The snake cannot turn around upon itself'''
+                if current_direction == 'up' and previous_direction == 'down':
+                        current_direction = 'down'
+                elif current_direction == 'down' and previous_direction == 'up':
+                        current_direction = 'up'
+                elif current_direction == 'left' and previous_direction == 'right':
+                        current_direction = 'right'
+                elif current_direction == 'right' and previous_direction == 'left':
+                        current_direction = 'left'
+                # Store our previous direction for the next loop
+                previous_direction = current_direction
                 # Based upon the direction of input, calculate the next head coordinate
                 if current_direction == 'up':
                         new_coord = [snake_coords[0][0], coordinate_edge_wrap(snake_coords[0][1], -1, y_size)]
@@ -219,19 +297,29 @@ def snake_game(controller_func, output_disp_func, x_size, y_size, game_update_sp
                         new_coord = [coordinate_edge_wrap(snake_coords[0][0], 1, x_size), snake_coords[0][1]]
                 # Check new snake head coordinate for collision or food conditions and update game conditions
                 snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
-                # Game lose condition
-                '''If a collision is detected, the user has lost and the game will
-                restart.
-                '''
-                if collision == True:
-                        restart_snake_game(snake_game_state, game_won, collision_coord=new_coord)
                 # Game win condition
-                '''If all positions are currently occupied by the snake, the user
-                has won and game will restart.
+                '''If all positions are occupied by the snake, the user has won!
                 '''
                 if sum(snake_row_counts) == x_size * y_size:
                         game_won = True # yay!
-                        restart_snake_game(snake_game_state, game_won)
+                # Obtain game states for display
+                '''Two game states are obtained which will be flickered between
+                to provide information on game events i.e., collision or winning
+                '''
+                        # Mode 1; normal
+                if collision == False and game_won == False:
+                        food_game_state, flicker_game_state = convert_state_for_display(snake_game_state, food_coord, 'normal')
+                        # Mode 2; collision
+                elif collision == True:
+                        '''The snake head will always be where the collision occurred.'''
+                        food_game_state, flicker_game_state = convert_state_for_display(snake_game_state, food_coord, 'collision', snake_coords[0])
+                        # Mode 3; win
+                elif game_won == True:
+                        food_game_state, flicker_game_state = convert_state_for_display(snake_game_state, food_coord, 'win')
+                # Identify food position if relevant before loop begins again
+                if food_present == False:
+                        snake_game_state, food_coord = determine_food_location(snake_game_state, snake_row_counts, x_size, y_size)
+                        food_present = True
 
 def restart_snake_game(snake_game_state):
         '''If this function is called, the game ended through failure or success.
@@ -284,9 +372,52 @@ def keyboard_controller_func(wait_for_controller, input_time_period=1):
                         direction = 'down'
         return direction
 
-def console_disp_func(snake_game_state):
-        asdf=1
+def convert_state_for_display(snake_game_state, food_coord, conversion_mode, collision_coord=None):
+        '''This function needs to render a game state where only 0's and 1's are
+        present; thus, the food position needs to be turned from a 2 to a 1
+        (1 means "light up this space/dot", 2 means "don't light this up").
+        The rest of the state is handled according to certain "modes" depending
+        on what event occured.
+        
+        Mode 1 = normal display; the snake will flicker on/off
+        Mode 2 = collision display; the point of collision will flicker on/off
+        Mode 3 = game win display; the entire board will flicker on/off
+        '''
+        # Ensure that inputs are sensible
+        if conversion_mode == 'collision':
+                assert collision_coord != None
+        # Replace food (2) with 1 in snake_game_state
+        '''I call it food_game_state since it's not the true game, it's a version
+        of the game where the food is altered from its base conditions. In cases
+        where the food was eaten on the turn that this will display, then the line
+        two down won't have any impact on the actual game.
+        '''
+        food_game_state = copy.deepcopy(snake_game_state)
+        food_game_state[food_coord[1]] = snake_game_state[food_coord[1]][0:food_coord[0]] + '1' + snake_game_state[food_coord[1]][food_coord[0]+1:]
+        # Derive x_size and y_size naturally
+        '''I think it's more intuitive to handle functions like this by just
+        giving it the game state without worrying about providing it the x and y
+        dimensions; we can derive this efficiently anyway.
+        '''
+        x_size = len(snake_game_state[0])
+        y_size = len(snake_game_state)
+        # Mode 1; normal
+        if conversion_mode == 'normal':
+                flicker_game_state = ['0' * x_size] * y_size
+                flicker_game_state[food_coord[1]] = flicker_game_state[food_coord[1]][0:food_coord[0]] + '1' + flicker_game_state[food_coord[1]][food_coord[0]+1:]
+        # Mode 2; collision
+        elif conversion_mode == 'collision':
+                flicker_game_state = copy.deepcopy(food_game_state)
+                flicker_game_state[collision_coord[1]] = flicker_game_state[collision_coord[1]][0:collision_coord[0]] + '0' + flicker_game_state[collision_coord[1]][collision_coord[0]+1:]
+        # Mode 3; win
+        elif conversion_mode == 'win':
+                food_game_state = ['0' * x_size] * y_size
+                flicker_game_state = ['1' * x_size] * y_size
+        return food_game_state, flicker_game_state
 
+def console_disp_func(game_state):
+        this_is_incomplete = True
+        
 def dotmatrix_disp_func(snake_game_state):
         this_is_incomplete = True
 
