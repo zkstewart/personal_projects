@@ -109,8 +109,47 @@ def tests():
         new_coord = [5,2]
         snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
         '''Outcome: snake extends in the right direction (tail does not move). Verdict: Success!'''
-        ## EDGE WRAPPING TEST 1
-        
+        ## EDGE WRAPPING TEST LEFT 1
+        snake_game_state = \
+        ['00000000',
+         '00000000',
+         '00002000',
+         '00000000',
+         '00000000',
+         '00000000',
+         '00000000',
+         '00000000',
+         '01111110']
+        new_coord = [0,8]
+        snake_coords = [[1,8],[2,8],[3,8],[4,8],[5,8],[6,8]]
+        snake_row_counts = [0, 0, 0, 0, 0, 0, 0, 0, 5]
+        extend_snake_next = False
+        food_present = True
+        snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
+        '''Outcome: snake moves to the left, and the old tail position moves'''
+        new_coord = [coordinate_edge_wrap(snake_coords[0][0], -1, x_size), snake_coords[0][1]]
+        snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
+        ## EDGE WRAPPING TEST RIGHT 1
+        snake_game_state = \
+        ['00000000',
+         '00000000',
+         '00002000',
+         '00000000',
+         '00000000',
+         '00000000',
+         '00000000',
+         '00000000',
+         '01111110']
+        new_coord = [7,8]
+        snake_coords = [[6,8],[5,8],[4,8],[3,8],[2,8],[1,8]]
+        snake_row_counts = [0, 0, 0, 0, 0, 0, 0, 0, 5]
+        extend_snake_next = False
+        food_present = True
+        snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
+        '''Outcome: snake moves to the right, and the old tail position moves'''
+        new_coord = [coordinate_edge_wrap(snake_coords[0][0], 1, x_size), snake_coords[0][1]]
+        snake_game_state, snake_coords, snake_row_counts, extend_snake_next, collision, food_present = snake_movement_handling(snake_game_state, new_coord, snake_coords, snake_row_counts, extend_snake_next)
+        '''Outcome: snake moves to the right and wraps around the edge, and the old tail position moves. Verdict: Success!'''
 
 # Game-essential functions
 def find_centre_of_grid(x_size, y_size):
@@ -163,9 +202,11 @@ def coordinate_edge_wrap(coord_number, number_modifier, coord_maximum):
         '''
         # Handle wrapping around top/left edge
         if coord_number == 0 and number_modifier == -1:
-                return coord_maximum
+                '''Need to -1 to make it 0-based'''
+                return coord_maximum - 1 
         # Handle wrapping around bottom/right bottom edge
-        elif coord_number == coord_maximum and number_modifier == 1:
+        elif coord_number == coord_maximum-1 and number_modifier == 1:
+                '''As before, -1 to coord_maximum to make it 0-based'''
                 return 0
         # Handle non-wrapping numbers
         else:
@@ -421,8 +462,8 @@ def convert_state_for_display(snake_game_state, food_coord, conversion_mode, col
                 flicker_game_state[collision_coord[1]] = flicker_game_state[collision_coord[1]][0:collision_coord[0]] + '0' + flicker_game_state[collision_coord[1]][collision_coord[0]+1:]
         # Mode 3; win
         elif conversion_mode == 'win':
-                food_game_state = ['0' * x_size] * y_size
-                flicker_game_state = ['1' * x_size] * y_size
+                food_game_state = ['1' * x_size] * y_size
+                flicker_game_state = ['0' * x_size] * y_size
         return food_game_state, flicker_game_state
 
 def console_display_func(game_state):
@@ -460,7 +501,7 @@ def main():
         on the platform and way in which this program is being run.'''
         x_size = 8
         y_size = 8
-        game_update_speed = 1
+        game_update_speed = 0.25
         # Start main game loop
         snake_game(keyboard_controller_func, console_display_func, x_size, y_size, game_update_speed)
 
