@@ -20,7 +20,7 @@ http://forum.square-enix.com/ffxiv/threads/354596-Crafting-Log-Lists-on-Garland-
 '''
 
 # Import modules
-import os, urllib.request, json, pytesseract, cv2, screeninfo
+import os, urllib.request, json, pytesseract, cv2, screeninfo, keyboard, queue, time
 import numpy as np
 from PIL import Image
 from mss import mss
@@ -62,7 +62,7 @@ def xivapi_json_result_identify(json_data, item_name, item_type):
         else:
                 return False
 
-def xivapi_automated_query(item_name, item_type):
+def xivapi_automated_query(item_name, item_type='recipe'):
         search_json = xivapi_string_search(item_name)
         search_hit = xivapi_json_result_identify(search_json, item_name, item_type)
         # Return False if query failed to find results
@@ -225,36 +225,86 @@ def temp_file_prefix_gen(prefix):
                 else:
                         return prefix + str(ongoingCount)
 
+def start_key_logger():
+        q = queue.Queue()
+        keyboard.start_recording(q)
+        return q
+
+def stop_key_logger():
+        q = keyboard.stop_recording()
+        return q
+
+def key_logger_queue_to_string(q, skipSpecial):  # q should be a queue. Queue object from 'keyboard' module
+        # Verify that skipSpecial value is sensible
+        if not type(skipSpecial) == bool:
+                raise Exception((
+                                'skipSpecial value provided to keyLoggerToString '
+                                ' is not boolean. Fix required at the code level.'
+                                ' i.e., tell Zac something is wrong.'))
+        specialKeys = ['shift', 'caps lock', 'esc', 'left windows', 'alt', 'ctrl',
+                       'right alt', 'right ctrl', 'insert', 'delete', 'home', 'end',
+                       'page up', 'page down', 'up', 'down', 'left', 'right', 'f1',
+                       'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11',
+                       'f12', 'print screen', 'scroll lock', 'pause', 'num lock']
+        s = ''
+        for k in q:  # q contains individual key values ('k') which contain methods from 'keyboard'
+                # Handle special keys and events
+                if k.event_type == 'up':  # key 'up' events don't inform us what value is actually typed
+                        continue
+                elif skipSpecial == True and k.name in specialKeys:
+                        continue
+                elif skipSpecial == False and k.name in specialKeys:
+                        s += '_' + k.name.upper() + '_'
+                elif k.name == 'space':
+                        s += ' '
+                elif k.name == 'enter':
+                        s += '\n'
+                elif k.name == 'tab':
+                        s += '\t'
+                elif k.name == 'backspace':
+                        s = s[:-1]
+                # Record other keys to string value
+                else:
+                        s += k.name
+        return s
+
+def wait_on_keylogger_for_key_press(key):
+        while True:
+                q = start_key_logger()
+                time.sleep(0.5)
+                q = stop_key_logger()
+                s = key_logger_queue_to_string(q, True)
+                if key in s:
+                        break
+
 def xivapi_manual_data_entry():
         print('To use this program in MANUAL mode, enter the name of an object to retrieve details.')
         print('Specify the full item name, or alternatively use wildcard syntax to autocomplete or find multiple matches.')
         print('e.g., "Bronze spatha" and "Bronze sp*" are both valid searches (without quotations).')
-        print('Program can be exited by typing "quit"')
+        print('Shopping cart can be emptied by typing "clear"; program can be exited by typing "quit"')
         shopping_cart = {} # This serves as our ongoing list of ingredients
         while True:
                 # User input loop
                 while True:
-                        user_input = input()
+                        print('Enter item name here')
+                        item_name = input()
                         # Program exit condition
-                        if user_input.lower() == 'quit':
+                        if item_name.lower() == 'quit':
                                 quit
+                        # Shopping cart clear
+                        elif item_name.lower() == 'clear':
+                                shopping_cart = {}
+                                continue
                         # Curate input
-                        user_input = user_input.strip(' \r\n')
+                        item_name = item_name.strip(' \r\n')
                         # Validate input
-                        if ';' not in user_input:
-                                print('; character is required to separate name from type.')
-                                continue
-                        item_name, item_type = user_input.split(';')
-                        if len(item_name) < 1 or len(item_type) < 1:
-                                print('name and/or type value must be specified.')
-                                continue
-                        elif item_type.lower() not in ['item', 'recipe']:
-                                print('object type must be "item" or "recipe".')
+                        if len(item_name) < 1:
+                                print('Name value must be specified.')
                                 continue
                         # Loop exits here if conditions were met
                         break
                 # Obtain relevant database item as JSON
-                item_json = xivapi_automated_query(item_name, item_type)
+                item_json = xivapi_automated_query(item_name)
                 if item_json == False:
                         print('XIVAPI query failed; try again with new search terms or exit program with "quit"')
                         continue
@@ -270,31 +320,14 @@ def xivapi_manual_data_entry():
 
 def xivapi_automated_gc_ingredients():
         print('To use this program in AUTO mode, enter FFXIV and bring up the Grand Company Delivery Missions screen unobscured by any other UI elements')
-        print('Once this has been performed, press the tilde key (~) to automatically')
-        print('Program can be exited by typing "quit"')
+        print('Once this has been performed, press the tilde key (~) to automatically generate a list of required ingredients for crafting')
+        print('Program can be exited by pressing')
         shopping_cart = {} # This serves as our ongoing list of ingredients
         while True:
-                # User input loop
-                while True:
-                        user_input = input()
-                        # Program exit condition
-                        if user_input.lower() == 'quit':
-                                quit
-                        # Curate input
-                        user_input = user_input.strip(' \r\n')
-                        # Validate input
-                        if ';' not in user_input:
-                                print('; character is required to separate name from type.')
-                                continue
-                        item_name, item_type = user_input.split(';')
-                        if len(item_name) < 1 or len(item_type) < 1:
-                                print('name and/or type value must be specified.')
-                                continue
-                        elif item_type.lower() not in ['item', 'recipe']:
-                                print('object type must be "item" or "recipe".')
-                                continue
-                        # Loop exits here if conditions were met
-                        break
+                wait_on_keylogger_for_key_press('~')
+                ### TBD
+                
+                ### TBD
                 # Obtain relevant database item as JSON
                 item_json = xivapi_automated_query(item_name, item_type)
                 if item_json == False:
