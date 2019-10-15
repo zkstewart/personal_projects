@@ -20,23 +20,27 @@ http://forum.square-enix.com/ffxiv/threads/354596-Crafting-Log-Lists-on-Garland-
 '''
 
 # Import modules
-import os, urllib.request, json, pytesseract, cv2, screeninfo, keyboard, queue, time, screeninfo
+import os, json, pytesseract, cv2, screeninfo, keyboard, queue, time, win32clipboard
 import numpy as np
+from urllib.request import Request, urlopen
 from PIL import Image
 from mss import mss
 from prettytable import PrettyTable
+from io import BytesIO
 
 # Web query functions
-def xivapi_string_search(item_name):
-        request = urllib.request.urlopen("https://xivapi.com/search?string=" + item_name).read()
+def xivapi_string_search(item_name, api_private_key):
+        url_string = "https://xivapi.com/search?string=" + item_name + "&private_key=" + api_private_key
+        request = urlopen(Request(url_string, headers = {'User-Agent': 'Mozilla/5.0'})).read()
         json_data = json.loads(request)
         return json_data
 
-def xivapi_json_from_url_suffix(url_suffix):
+def xivapi_json_from_url_suffix(url_suffix, api_private_key):
         '''The url suffix is provided by the API; it is just the combination of
         item type and ID e.g., "/Recipe/38" but for simplification we might as 
         well just use the url the API gives us rather than make it ourselves.'''
-        request = urllib.request.urlopen("http://xivapi.com" + url_suffix).read()
+        url_string = "http://xivapi.com" + url_suffix + "?private_key=" + api_private_key
+        request = urlopen(Request(url_string, headers = {'User-Agent': 'Mozilla/5.0'})).read()
         json_data = json.loads(request)
         return json_data
 
@@ -61,8 +65,8 @@ def xivapi_json_result_identify(json_data, item_name, item_type):
         else:
                 return False
 
-def xivapi_automated_query(item_name, item_type='recipe'):
-        search_json = xivapi_string_search(item_name)
+def xivapi_automated_query(item_name, api_private_key, item_type='recipe'):
+        search_json = xivapi_string_search(item_name, api_private_key)
         search_hit = xivapi_json_result_identify(search_json, item_name, item_type)
         # Return False if query failed to find results
         if search_hit == False:
@@ -97,7 +101,7 @@ def xivapi_automated_query(item_name, item_type='recipe'):
                         else:
                                 print('Input not recognised; should be a digit or "n" (no quotations).')
         # Identify item values
-        item_json = xivapi_json_from_url_suffix(search_hit['Url'])
+        item_json = xivapi_json_from_url_suffix(search_hit['Url'], api_private_key)
         return item_json
 
 def xivapi_recipe_data_extraction(item_json):
@@ -149,7 +153,7 @@ def cv2_tesseract_OCR(image_file):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
         # Produce temporary file
-        filename = os.path.join(os.path.dirname(image_file), temp_file_prefix_gen('temp') + '.png')
+        filename = temp_file_prefix_gen(os.path.join(os.path.dirname(image_file), 'temp'), '.png')
         cv2.imwrite(filename, gray)
         # OCR of preprocessed image file
         ocr_text = pytesseract.image_to_string(Image.open(filename))
@@ -161,6 +165,17 @@ def OCR_text_cleanup(ocr_text):
         while '\n\n' in ocr_text:
                 ocr_text = ocr_text.replace('\n\n', '\n')
         return ocr_text
+
+def OCR_mistake_correction(ocr_string):
+        # Fix uncapitalised first letters
+        '''In FFXIV the first letter of an item name is always capitalised;
+        where the first letter is not uppercase we can thus be certain that an 
+        OCR mistake has occurred
+        '''
+        if not ocr_string[0].isupper():
+                if ocr_string[0] == 'l':
+                        ocr_string = 'I' + ocr_string[1:]
+        return ocr_string
 
 def take_screenshot(subsection_coords=None):
         '''subsection_coords specifies the range to screenshot; also, some code borrowed from
@@ -204,15 +219,15 @@ def ffxiv_gc_box_coords(screenshot_grayscale, template_file, threshold=0.9):
         gc_y_topleft = int(y_coord + (110 / (1080 / monitor.height)))
         return gc_x_topleft, gc_y_topleft
 
-def temp_file_prefix_gen(prefix):
+def temp_file_prefix_gen(prefix, suffix):
         ongoingCount = 1
         while True:
-                if not os.path.isfile(prefix):
-                        return prefix
-                elif os.path.isfile(prefix + str(ongoingCount)):
+                if not os.path.isfile(prefix + suffix):
+                        return prefix + suffix
+                elif os.path.isfile(prefix + str(ongoingCount) + suffix):
                         ongoingCount += 1
                 else:
-                        return prefix + str(ongoingCount)
+                        return prefix + str(ongoingCount) + suffix
 
 def start_key_logger():
         q = queue.Queue()
@@ -270,7 +285,24 @@ def url_utf8_encode(string):
         string = string.replace(' ', '%20').replace("'", '%27')
         return string
 
-def xivapi_manual_data_entry():
+def image_to_clipboard(image_file):
+        '''Some code borrowed from
+        https://stackoverflow.com/questions/7050448/write-image-to-windows-clipboard-in-python-with-pil-and-win32clipboard
+        '''
+        def send_to_clipboard(clip_type, data):
+                win32clipboard.OpenClipboard()
+                win32clipboard.EmptyClipboard()
+                win32clipboard.SetClipboardData(clip_type, data)
+                win32clipboard.CloseClipboard()
+        # Open and read file as BMP
+        image = Image.open(image_file)
+        output = BytesIO()
+        image.convert("RGB").save(output, "BMP")
+        data = output.getvalue()[14:]
+        output.close()
+        send_to_clipboard(win32clipboard.CF_DIB, data)
+
+def xivapi_manual_data_entry(api_private_key):
         print('To use this program in MANUAL mode, enter the name of an object to retrieve details.')
         print('Specify the full item name, or alternatively use wildcard syntax to autocomplete or find multiple matches.')
         print('e.g., "Bronze spatha" and "Bronze sp*" are both valid searches (without quotations).')
@@ -299,7 +331,7 @@ def xivapi_manual_data_entry():
                 # Encode item name for proper searching
                 item_name = url_utf8_encode(item_name)
                 # Obtain relevant database item as JSON
-                item_json = xivapi_automated_query(item_name)
+                item_json = xivapi_automated_query(item_name, api_private_key)
                 if item_json == False:
                         print('XIVAPI query failed; try again with new search terms or exit program with "quit"')
                         continue
@@ -311,58 +343,104 @@ def xivapi_manual_data_entry():
                 print(shopping_cart_pretty_table(shopping_cart))
                 print('')
 
-def xivapi_automated_gc_ingredients(template_file):
-        print('To use this program in AUTO mode, enter FFXIV and bring up the Grand Company Delivery Missions screen unobscured by any other UI elements')
-        print('Once this has been performed, press the tilde key (~) to automatically generate a list of required ingredients for crafting')
+def screenshot_preprocess_for_ocr(monitor_object, x_topleft, y_topleft, x_topleft_offset, y_topleft_offset, RESIZE_RATIO, temp_dir):
+        '''monitor_object relates to the object generated by e.g., screeninfo.get_monitors()[0]'''
+        screenshot_item_names = take_screenshot((x_topleft, y_topleft, int(x_topleft_offset / (1920 / monitor_object.width)), int(y_topleft_offset / (1080 / monitor_object.height))))
+        temp_filename = temp_file_prefix_gen(os.path.join(temp_dir, 'temp'), '.png')
+        cv2.imwrite(temp_filename, screenshot_item_names)
+        screenshot_temp_image = Image.open(temp_filename)
+        resized_screenshot_image = screenshot_temp_image.resize(((int(250 / (1920 / monitor_object.width)) * RESIZE_RATIO), int(350 / (1080 / monitor_object.height)) * RESIZE_RATIO), Image.ANTIALIAS)
+        resized_screenshot_image.save(temp_filename, 'PNG')
+        return temp_filename
+
+def xivapi_screenshot_to_OCR_pipeline(monitor_object, template_file, RESIZE_RATIO):
+        # Obtain screenshot and check it for suitability
+        screenshot_grayscale = take_screenshot()
+        gc_x_topleft, gc_y_topleft = ffxiv_gc_box_coords(screenshot_grayscale, template_file, threshold=0.9)
+        if gc_x_topleft == False:
+                return False
+        # Obtain a cropped screenshot of the item list & increase size
+        temp_filename = screenshot_preprocess_for_ocr(monitor_object, gc_x_topleft, gc_y_topleft, 250, 350, RESIZE_RATIO, os.path.dirname(template_file))
+        # Use OCR to extract text from the cropped, resized screenshot
+        ocr_text = cv2_tesseract_OCR(temp_filename)
+        ocr_text = OCR_text_cleanup(ocr_text)
+        return temp_filename, ocr_text
+
+def xivapi_auto_item_name_looping(name_list_1, name_list_2, iteration_number, api_private_key, recipe_type):
+        failed = False
+        while True:
+                # Encode item name for proper searching
+                if failed == False:
+                        item_name = url_utf8_encode(name_list_1[iteration_number])
+                else:
+                        item_name = url_utf8_encode(name_list_2[iteration_number])
+                # Correct known OCR mistakes
+                item_name = OCR_mistake_correction(item_name)
+                try:
+                        item_json = xivapi_automated_query(item_name, api_private_key, recipe_type)
+                except Exception as e:
+                        if str(e) == 'HTTP Error 400: Bad Request':
+                                print(e)
+                                print('XIVAPI query failed')
+                                print('It is probable that the URL was not encoded properly (i.e., tell Zac what the item name is and he\'ll fix it)')
+                                print('Item name = "' + item_name + '"')
+                                print('Ingredients skipped and program will continue operation')
+                        else:
+                                print(e)
+                                print('XIVAPI query failed')
+                                print('This exception is currently unhandled. Sorry. Tell Zac what the item name was and what the error messsage above was.')
+                                print('Item name = "' + item_name + '"')
+                                print('Ingredients skipped and program will continue operation')
+                        continue
+                if item_json == False and failed == False:
+                        failed = True
+                        continue
+                break
+        return item_json
+
+def xivapi_automated_gc_ingredients(template_file, api_private_key):
+        print('To use this program in AUTO mode, enter FFXIV and bring up the Grand Company Delivery Missions screen.')
         monitor = screeninfo.get_monitors()[0] # This is our main monitor's dimensions
-        RESIZE_RATIO = 6
         while True:
                 shopping_cart = {} # This serves as our ongoing list of ingredients
-                # Loop will begin upon receiving the tilde key
+                # Provisions loop will begin upon receiving the tilde key
+                print('Press the tilde key (~) once you have brought up the Grand Company Delivery Missions *SUPPLY* screen unobscured by any other UI elements')
                 wait_on_keylogger_for_key_press('~')
-                # Obtain screenshot and check it for suitability
-                screenshot_grayscale = take_screenshot()
-                gc_x_topleft, gc_y_topleft = ffxiv_gc_box_coords(screenshot_grayscale, template_file, threshold=0.9)
-                if gc_x_topleft == False:
-                        print('Grand Company Delivery Missions box was not identifiable on your screen.')
-                        print('Make sure it is unobscured, and that your template is the correct size, then press tilde (~) to try again.')
-                        continue
-                # Obtain a cropped screenshot of the item list & increase size
-                screenshot_item_names = take_screenshot((gc_x_topleft, gc_y_topleft, int(250 / (1920 / monitor.width)), int(350 / (1080 / monitor.height))))
-                temp_filename = os.path.join(os.path.dirname(template_file), temp_file_prefix_gen('temp') + '.png')
-                cv2.imwrite(temp_filename, screenshot_item_names)
-                screenshot_temp_image = Image.open(temp_filename)
-                resized_screenshot_image = screenshot_temp_image.resize(((int(250 / (1920 / monitor.width)) * RESIZE_RATIO), int(350 / (1080 / monitor.height)) * RESIZE_RATIO), Image.ANTIALIAS)
-                resized_screenshot_image.save(temp_filename, 'PNG')
-                # Use OCR to extract text from the cropped, resized screenshot
-                ocr_text = cv2_tesseract_OCR(temp_filename)
-                ocr_text = OCR_text_cleanup(ocr_text)
+                while True:
+                        '''We do a resize ratio of 6 and 8 as OCR sometimes works for one value but not the other'''
+                        temp_supply_filename_6, ocr_supply_text_6 = xivapi_screenshot_to_OCR_pipeline(monitor, template_file, 6) # RESIZE_RATIO == 6
+                        temp_supply_filename_8, ocr_supply_text_8 = xivapi_screenshot_to_OCR_pipeline(monitor, template_file, 8) # RESIZE_RATIO == 8
+                        if ocr_supply_text_6 == False or ocr_supply_text_8 == False:
+                                print('Grand Company Delivery Missions supply box was not identifiable on your screen.')
+                                print('Make sure it is unobscured, and that your template is the correct size, then press tilde (~) to try again.')
+                                continue
+                        supply_names_6 = ocr_supply_text_6.split('\n')
+                        supply_names_8 = ocr_supply_text_8.split('\n')
+                        break
+                # Supply loop will begin upon receiving the tilde key
+                print('Press the tilde key (~) once you have brought up the Grand Company Delivery Missions *PROVISIONING* screen unobscured by any other UI elements')
+                wait_on_keylogger_for_key_press('~')
+                while True:
+                        temp_provision_filename_6, ocr_provision_text_6 = xivapi_screenshot_to_OCR_pipeline(monitor, template_file, 6) # RESIZE_RATIO == 6
+                        temp_provision_filename_8, ocr_provision_text_8 = xivapi_screenshot_to_OCR_pipeline(monitor, template_file, 8) # RESIZE_RATIO == 8
+                        if ocr_provision_text_6 == False or ocr_provision_text_8 == False:
+                                print('Grand Company Delivery Missions provisions box was not identifiable on your screen.')
+                                print('Make sure it is unobscured, and that your template is the correct size, then press tilde (~) to try again.')
+                                continue
+                        provision_names_6 = ocr_provision_text_6.split('\n')
+                        provision_names_8 = ocr_provision_text_8.split('\n')
+                        break
+                ###TBD: concat_temp_filename = image_concatenate(temp_supply_filename_6, temp_provision_filename_6)
+                image_to_clipboard(temp_provision_filename_6) # Copy the image to clipboard for convenience
+                # Clean up temp files
+                for f in [temp_supply_filename_6, temp_supply_filename_8, temp_provision_filename_6, temp_provision_filename_8]:
+                        os.unlink(f)
                 # Loop through item names and build our shopping cart!
-                item_names = ocr_text.split('\n')
-                for item_name in item_names:
-                        # Encode item name for proper searching
-                        item_name = url_utf8_encode(item_name)
-                        # Obtain relevant database item as JSON
-                        try:
-                                item_json = xivapi_automated_query(item_name)
-                        except Exception as e:
-                                if str(e) == 'HTTP Error 400: Bad Request':
-                                        print(e)
-                                        print('XIVAPI query failed')
-                                        print('It is probable that the URL was not encoded properly (i.e., tell Zac what the item name is and he\'ll fix it)')
-                                        print('Item name = "' + item_name + '"')
-                                        print('Ingredients skipped and program will continue operation')
-                                        continue
-                                else:
-                                        print(e)
-                                        print('XIVAPI query failed')
-                                        print('This exception is currently unhandled. Sorry. Tell Zac what the item name was and what the error messsage above was.')
-                                        print('Item name = "' + item_name + '"')
-                                        print('Ingredients skipped and program will continue operation')
-                                        continue
+                for i in range(len(supply_names_6)):
+                        item_json = xivapi_auto_item_name_looping(supply_names_6, supply_names_8, i, api_private_key, 'recipe')
                         if item_json == False:
                                 print('XIVAPI query failed')
-                                print('It is probable that this was caused by incorrect OCR capture of item name ("' + item_name + '"')
+                                print('It is probable that this was caused by incorrect OCR capture of item name #' + str(i+1) + ' ("' + supply_names_6[i] + '"')
                                 print('Ingredients skipped and program will continue operation')
                                 continue
                         # Extract materials from JSON
@@ -371,10 +449,27 @@ def xivapi_automated_gc_ingredients(template_file):
                         shopping_cart = dict_merge(shopping_cart, item_ingredient_dict)
                         # Associate materials to the item that they create
                         ### TBD
+                # Check our provisioning values
+                for i in range(len(provision_names_6)):
+                        item_json = xivapi_auto_item_name_looping(provision_names_6, provision_names_8, i, api_private_key, 'item')
+                        if item_json == False:
+                                print('XIVAPI query failed')
+                                print('It is probable that this was caused by incorrect OCR capture of provision name #' + str(i+1) + ' ("' + provision_names_6[i] + '"')
+                                print('Ingredients skipped and program will continue operation')
+                                continue
+                        item_name = item_json['Name']
+                        # Associate number of items based on i value
+                        '''There are always 3 provisions, and the first 2 request 10x, with the final fishing request only being 3x'''
+                        if i != 2:
+                                item_ingredient_dict = {item_name: 10}
+                        else:
+                                item_ingredient_dict = {item_name: 3}
+                        # Add materials into the shopping cart
+                        shopping_cart = dict_merge(shopping_cart, item_ingredient_dict)
                 # Format list of required materials and print for user inspection
                 print(shopping_cart_pretty_table(shopping_cart))
                 print('')
-                print('All done! Press tilde (~) to generate a new list of ingredients')
+                print('All done! (An image has been saved in your clipboard, too!) Press tilde (~) to generate a new list of ingredients')
 
 # Main call
 def main():
@@ -384,6 +479,7 @@ def main():
         '''
         pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
         template_file = r'C:\Users\Zac\Desktop\FFXIV_coding\gc_template.png'
+        api_private_key = '7a9eb114d3cb4c588c3b8c980640a58b3e39573f461e4dc9b925716d28103d32'
         # Allow user to determine what mode the program will run in
         print('Welcome to the FFXIV Grand Company Delivery Mission helper!')
         print('This program will assist in the completion of these objectives or in the crafting of any list of items.')
@@ -397,9 +493,9 @@ def main():
                         print('You must type either AUTO or MANUAL (case insensitive)')
                 break
         if user_input == 'auto':
-                xivapi_automated_gc_ingredients(template_file)
+                xivapi_automated_gc_ingredients(template_file, api_private_key)
         elif user_input == 'manual':
-                xivapi_manual_data_entry()
+                xivapi_manual_data_entry(api_private_key)
 
 if __name__ == '__main__':
         main()
