@@ -368,6 +368,7 @@ def xivapi_screenshot_to_OCR_pipeline(monitor_object, template_file, RESIZE_RATI
 
 def xivapi_auto_item_name_looping(name_list_1, name_list_2, iteration_number, api_private_key, recipe_type):
         failed = False
+        item_json = False
         while True:
                 # Encode item name for proper searching
                 if failed == False:
@@ -385,13 +386,18 @@ def xivapi_auto_item_name_looping(name_list_1, name_list_2, iteration_number, ap
                                 print('It is probable that the URL was not encoded properly (i.e., tell Zac what the item name is and he\'ll fix it)')
                                 print('Item name = "' + item_name + '"')
                                 print('Ingredients skipped and program will continue operation')
+                        if str(e) == 'HTTP Error 404: Not found':
+                                print(e)
+                                print('XIVAPI query failed')
+                                print('This item does not appear to be within the XIVAPI database. Not a lot I can do about that.')
+                                print('Item name = "' + item_name + '"')
+                                print('Ingredients skipped and program will continue operation')
                         else:
                                 print(e)
                                 print('XIVAPI query failed')
                                 print('This exception is currently unhandled. Sorry. Tell Zac what the item name was and what the error messsage above was.')
                                 print('Item name = "' + item_name + '"')
                                 print('Ingredients skipped and program will continue operation')
-                        continue
                 if item_json == False and failed == False:
                         failed = True
                         continue
@@ -413,9 +419,15 @@ def xivapi_automated_gc_ingredients(template_file, api_private_key):
                         if ocr_supply_text_6 == False or ocr_supply_text_8 == False:
                                 print('Grand Company Delivery Missions supply box was not identifiable on your screen.')
                                 print('Make sure it is unobscured, and that your template is the correct size, then press tilde (~) to try again.')
+                                wait_on_keylogger_for_key_press('~')
                                 continue
                         supply_names_6 = ocr_supply_text_6.split('\n')
                         supply_names_8 = ocr_supply_text_8.split('\n')
+                        if len(supply_names_6) != len(supply_names_8):
+                                print('Grand Company Delivery Missions supply box was not captured correctly.')
+                                print('Make sure it is unobscured, and that your template is the correct size, then press tilde (~) to try again.')
+                                wait_on_keylogger_for_key_press('~')
+                                continue
                         break
                 # Supply loop will begin upon receiving the tilde key
                 print('Press the tilde key (~) once you have brought up the Grand Company Delivery Missions *PROVISIONING* screen unobscured by any other UI elements')
@@ -426,16 +438,23 @@ def xivapi_automated_gc_ingredients(template_file, api_private_key):
                         if ocr_provision_text_6 == False or ocr_provision_text_8 == False:
                                 print('Grand Company Delivery Missions provisions box was not identifiable on your screen.')
                                 print('Make sure it is unobscured, and that your template is the correct size, then press tilde (~) to try again.')
+                                wait_on_keylogger_for_key_press('~')
                                 continue
                         provision_names_6 = ocr_provision_text_6.split('\n')
                         provision_names_8 = ocr_provision_text_8.split('\n')
+                        if len(provision_names_6) != len(provision_names_8):
+                                print('Grand Company Delivery Missions provisions box was not captured correctly.')
+                                print('Make sure it is unobscured, and that your template is the correct size, then press tilde (~) to try again.')
+                                wait_on_keylogger_for_key_press('~')
+                                continue
                         break
                 ###TBD: concat_temp_filename = image_concatenate(temp_supply_filename_6, temp_provision_filename_6)
-                image_to_clipboard(temp_provision_filename_6) # Copy the image to clipboard for convenience
+                image_to_clipboard(temp_supply_filename_6) # Copy the image to clipboard for convenience
                 # Clean up temp files
                 for f in [temp_supply_filename_6, temp_supply_filename_8, temp_provision_filename_6, temp_provision_filename_8]:
                         os.unlink(f)
                 # Loop through item names and build our shopping cart!
+                supply_names = []
                 for i in range(len(supply_names_6)):
                         item_json = xivapi_auto_item_name_looping(supply_names_6, supply_names_8, i, api_private_key, 'recipe')
                         if item_json == False:
@@ -443,6 +462,7 @@ def xivapi_automated_gc_ingredients(template_file, api_private_key):
                                 print('It is probable that this was caused by incorrect OCR capture of item name #' + str(i+1) + ' ("' + supply_names_6[i] + '"')
                                 print('Ingredients skipped and program will continue operation')
                                 continue
+                        supply_names.append(item_json['Name'])
                         # Extract materials from JSON
                         item_ingredient_dict = xivapi_recipe_data_extraction(item_json)
                         # Add materials into the shopping cart
@@ -468,6 +488,9 @@ def xivapi_automated_gc_ingredients(template_file, api_private_key):
                         shopping_cart = dict_merge(shopping_cart, item_ingredient_dict)
                 # Format list of required materials and print for user inspection
                 print(shopping_cart_pretty_table(shopping_cart))
+                print('')
+                print('Items requested:')
+                print('\n'.join(supply_names))
                 print('')
                 print('All done! (An image has been saved in your clipboard, too!) Press tilde (~) to generate a new list of ingredients')
 
