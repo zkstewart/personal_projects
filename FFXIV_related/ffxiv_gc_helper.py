@@ -158,7 +158,7 @@ def cv2_tesseract_OCR(image_file):
         # OCR of preprocessed image file
         ocr_text = pytesseract.image_to_string(Image.open(filename))
         # Delete temporary file & return
-        #os.unlink(filename)
+        os.unlink(filename)
         return ocr_text
 
 def OCR_text_cleanup(ocr_text):
@@ -284,23 +284,6 @@ def wait_on_keylogger_for_key_press(key):
 def url_utf8_encode(string):
         string = string.replace(' ', '%20').replace("'", '%27')
         return string
-
-def image_to_clipboard(image_file):
-        '''Some code borrowed from
-        https://stackoverflow.com/questions/7050448/write-image-to-windows-clipboard-in-python-with-pil-and-win32clipboard
-        '''
-        def send_to_clipboard(clip_type, data):
-                win32clipboard.OpenClipboard()
-                win32clipboard.EmptyClipboard()
-                win32clipboard.SetClipboardData(clip_type, data)
-                win32clipboard.CloseClipboard()
-        # Open and read file as BMP
-        image = Image.open(image_file)
-        output = BytesIO()
-        image.convert("RGB").save(output, "BMP")
-        data = output.getvalue()[14:]
-        output.close()
-        send_to_clipboard(win32clipboard.CF_DIB, data)
 
 def xivapi_manual_data_entry(api_private_key):
         print('To use this program in MANUAL mode, copy the name of an object to your clipboard to retrieve details.')
@@ -457,8 +440,6 @@ def xivapi_automated_gc_ingredients(template_file, api_private_key):
                                 wait_on_keylogger_for_key_press('~')
                                 continue
                         break
-                ###TBD: concat_temp_filename = image_concatenate(temp_supply_filename_6, temp_provision_filename_6)
-                image_to_clipboard(temp_supply_filename_6) # Copy the image to clipboard for convenience
                 # Clean up temp files
                 for f in [temp_supply_filename_6, temp_supply_filename_8, temp_provision_filename_6, temp_provision_filename_8]:
                         os.unlink(f)
@@ -479,6 +460,7 @@ def xivapi_automated_gc_ingredients(template_file, api_private_key):
                         # Associate materials to the item that they create
                         ### TBD
                 # Check our provisioning values
+                provision_names = []
                 for i in range(len(provision_names_6)):
                         item_json = xivapi_auto_item_name_looping(provision_names_6, provision_names_8, i, api_private_key, 'item')
                         if item_json == False:
@@ -487,12 +469,13 @@ def xivapi_automated_gc_ingredients(template_file, api_private_key):
                                 print('Ingredients skipped and program will continue operation')
                                 continue
                         item_name = item_json['Name']
+                        provision_names.append(item_name)
                         # Associate number of items based on i value
-                        '''There are always 3 provisions, and the first 2 request 10x, with the final fishing request only being 3x'''
+                        '''There are always 3 provisions, and the first 2 request 10x, with the final fishing request only being 1x'''
                         if i != 2:
                                 item_ingredient_dict = {item_name: 10}
                         else:
-                                item_ingredient_dict = {item_name: 3}
+                                item_ingredient_dict = {item_name: 1}
                         # Add materials into the shopping cart
                         shopping_cart = dict_merge(shopping_cart, item_ingredient_dict)
                 # Format list of required materials and print for user inspection
@@ -500,8 +483,14 @@ def xivapi_automated_gc_ingredients(template_file, api_private_key):
                 print('')
                 print('Items requested:')
                 print('\n'.join(supply_names))
+                print('Provisions requested:')
+                print('\n'.join(provision_names))
                 print('')
-                print('All done! (An image has been saved in your clipboard, too!) Press tilde (~) to generate a new list of ingredients')
+                output_to_clipboard = '\n'.join(supply_names) + '\n' + '\n'.join(provision_names) + '\n#Materials'
+                for material in shopping_cart.keys():
+                        output_to_clipboard += '\n' + material
+                pyperclip.copy(output_to_clipboard)
+                print('All done! A list of items has been saved to your clipboard, too! Exclamation marks!!')
 
 # Main call
 def main():
