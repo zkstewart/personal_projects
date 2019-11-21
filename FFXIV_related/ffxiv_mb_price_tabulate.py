@@ -41,7 +41,13 @@ def take_screenshot(subsection_coords=None):
                 grab_coords = {'left': monitor.x, 'top': monitor.y, 'width': monitor.width, 'height': monitor.height}
         else:
                 grab_coords = {'left': subsection_coords[0], 'top': subsection_coords[1], 'width': subsection_coords[2], 'height': subsection_coords[3]}
-        screenshot_image = mss().grab(grab_coords)
+        while True:
+                try:
+                        with mss() as sct:
+                                screenshot_image = sct.grab(grab_coords)
+                        break
+                except:
+                        time.sleep(1)
         img = Image.frombytes('RGB', screenshot_image.size, screenshot_image.rgb)
         img = np.array(img)
         img = img[:, :, ::-1]
