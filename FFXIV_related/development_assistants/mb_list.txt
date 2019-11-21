@@ -1,0 +1,41 @@
+Holy Cedar Composite Bow	1	
+Dark Chestnut Rod	1	
+Birch Lumber	3	
+Adamantite Trident	1	
+Mythrite Rivet	3	
+Titanium Bastard Sword	1	
+Titanium Lump Hammer	1	
+Adamantite Winglet	1	
+Titanium Cuirass of Maiming	1	
+Titanium Hoplon	1	
+Adamantite Lorica of Fending	1	
+Hardsilver Bangle of Casting	1	NQ
+Hardsilver Ingot	1	NQ
+Aurum Regis Cylinder	1	NQ
+Star Sapphire Music Box	1	NQ
+Star Ruby Music Box	1	NQ
+Wyvernskin Workboots	1	
+Dhalmelskin Leggings of Scouting	1	
+Dragonskin Choker	1	
+Chivalric Battledress of Aiming	1	NQ
+Rainbow Gloves	1	
+Holy Rainbow Hat of Healing	1	
+Crawler Silk	3	
+Chivalric Doublet of Healing	1	
+Enchanted Mythrite Ink	3	
+Grade 1 Intelligence Dissolvent	3	
+Draconian Potion of Strength	1	
+Noble Gold	1	
+Kaiser Roll	1	
+Beet Soup	1	
+Grilled Sweetfish	1	
+Cockatrice Meatballs	1	
+Morel Salad	1	
+Deep-Fried Okeanis	1	
+Marron Glace	1	
+Titanium Ore	10	
+Hardsilver Ore	10	
+Adamantite Ore	3	
+Emerald Beans	10	
+Birch Log	10	
+Chysahl Greens	3	
