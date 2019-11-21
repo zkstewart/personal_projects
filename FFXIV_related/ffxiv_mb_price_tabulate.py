@@ -1,26 +1,8 @@
 #! python3
 # ffxiv_mb_price_tabulate.py
-# TBD: Script introduction
-
-'''
-LIST OF REQUIREMENTS:
-1) Introduce the user to the program's requirements
-2) Recognise when the marketboard is opened
-3) Detect the server that the user is on
-        3.1) Detect if it is the home server
-4) Retrieve a list of items from clipboard
-5) Iteratively enter the item name into the search box
-6) Detect nil matches and multiple matches -> skip
-7) Click on the match
-        7.1) Detect if no items found
-        7.2) Detect "Please wait and try your search again" -> reclick
-8) Screenshot board
-        8.1) Detect the number of hits
-                8.1.1) If <=10, capture all details and continue
-                8.1.2) If >10, scroll down in lots of 10 scrollwheel units or until last hit is reached and capture all details, continue
-9) Concatenate screenshot images into a single board
-# TBD from here
-'''
+# Script which automates the horribly tedious process of checking the marketboard
+# for item prices. It works on the clipboard, so no command-line arguments are
+# required.
 
 # Import modules
 import pyperclip, pytesseract, cv2, screeninfo, os, ctypes, pyautogui, time, mouse
@@ -293,13 +275,11 @@ def main():
         # Obtain system-specific values
         monitor = screeninfo.get_monitors()[0] # This is our main monitor's dimensions
         # Program start-up
-        ## REQUIREMENT 1
         print('Welcome to the FFXIV Market Board Price Tabulator!')
         while True:
                 print('Make your way over to a marketboard and bring up the item search box; configure the "partial match" setting as required for your needs.')
                 print('Press ENTER in this dialog box when this has been done.')
                 while True:
-                        ## REQUIREMENT 2
                         button=input()
                         screenshot_grayscale = take_screenshot()
                         item_search_x_coord, item_search_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'mb_top_left.png'))
@@ -309,7 +289,6 @@ def main():
                         break
                 print('Next, copy a list of items into your clipboard and then press ENTER.')
                 while True:
-                        ## REQUIREMENT 4
                         button=input()
                         text=pyperclip.paste()
                         if text == '':
@@ -318,7 +297,6 @@ def main():
                         break
                 print('Alright, sit back and leave your mouse and keyboard alone for a short while.') # End of program start-up
                 # Figure out what server the user is on
-                ## REQUIREMENT 3
                 while True:
                         servername_screenshot_grayscale = take_screenshot((int(TOPRIGHT_OF_SCREEN_X_OFFSET / (1920 / monitor.width)), 0, abs(int(int(1920-TOPRIGHT_OF_SCREEN_X_OFFSET) / (1920 / monitor.width))), int(TOPRIGHT_OF_SCREEN_HEIGHT / (1080 / monitor.height))))
                         server_name = screenshot_server_automatic_capture(servername_screenshot_grayscale, template_directory, 'server.png')
@@ -328,13 +306,11 @@ def main():
                                 print('Server name wasn\'t captured properly! Move the screen a bit then I\'ll try again.')
                                 time.sleep(5)
                 # Prepare clipboard text for iterative query
-                ## REQUIREMENT 4
                 item_names = text.rstrip('\r\n').replace('\r', '').split('\n')
                 # Main iterative loop: item name query to marketboard
                 item_details_dict = {}
                 for item in item_names:
                         # Search item name
-                        ## REQUIREMENT 5
                         mousePress([int(item_search_x_coord+int(ITEM_SEARCH_X_OFFSET / (1920 / monitor.width))), int(item_search_y_coord+int(ITEM_SEARCH_Y_OFFSET / (1920 / monitor.width)))], 'left', 1, 0.0, 0.5)
                         keyboardPressHotkey(['ctrl', 'a'])
                         keyboardPressSequential(['backspace'], None, None)
@@ -345,17 +321,14 @@ def main():
                         # Figure out if we have no or multiple results; either is problematic
                         match_screenshot_grayscale = take_screenshot()
                         match_x_coord, match_y_coord = screenshot_template_match_topleftcoords(match_screenshot_grayscale, os.path.join(template_directory, 'nomatch.png'))
-                        ### REQUIREMENT 6
                         if match_x_coord != False:
                                 print('There is no match for "' + item + '"... fix your inputs; program will ignore and continue.')
                                 continue
                         # Click item
-                        ### REQUIREMENT 7
                         while True:
                                 mousePress([int(item_search_x_coord+int(ITEM_CLICK_X_OFFSET / (1920 / monitor.width))), int(item_search_y_coord+int(ITEM_CLICK_Y_OFFSET / (1920 / monitor.width)))], 'left', 2, 0.5, 0.5)
                                 time.sleep(1)
                                 # Detect "Please wait and try..." statements
-                                ### REQUIREMENT 7.2
                                 screenshot_grayscale = take_screenshot()
                                 result_x_coord, result_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'result_top_left.png'))
                                 wait_x_coord, wait_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'please_wait.png'))
@@ -388,7 +361,6 @@ def main():
                                                         if i < (10 - remaining_hits):
                                                                 continue
                                         ## Qty Section
-                                        ### REQUIREMENT 8
                                         qty_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTQTY_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTQTY_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(QTY_WIDTH / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
                                         qty = screenshot_number_automatic_capture(qty_screenshot_grayscale, template_directory, 'qty.png')
                                         if qty == '':
