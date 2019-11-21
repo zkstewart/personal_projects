@@ -92,19 +92,6 @@ def screenshot_preprocess_for_ocr(screenshot_grayscale, screenshot_width, screen
         resized_screenshot_image.save(temp_filename, 'PNG')
         return temp_filename
 
-def cv2_tesseract_OCR_glowingtext(image_file):
-        image = cv2.imread(image_file)
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        gray = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY)[1]
-        # Produce temporary file
-        filename = temp_file_prefix_gen(os.path.join(os.path.dirname(image_file), 'temp'), '.png')
-        cv2.imwrite(filename, gray)
-        # OCR of preprocessed image file
-        ocr_text = pytesseract.image_to_string(Image.open(filename))
-        # Delete temporary file & return
-        os.unlink(filename)
-        return ocr_text
-
 def cv2_tesseract_OCR_pricetext(image_file, lower_bound):
         image = cv2.imread(image_file)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -114,6 +101,19 @@ def cv2_tesseract_OCR_pricetext(image_file, lower_bound):
         cv2.imwrite(filename, gray)
         # OCR of preprocessed image file
         ocr_text = pytesseract.image_to_string(Image.open(filename))
+        # Delete temporary file & return
+        os.unlink(filename)
+        return ocr_text
+
+def cv2_tesseract_OCR_singlechar(image_file, lower_bound):
+        image = cv2.imread(image_file)
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        gray = cv2.threshold(gray, lower_bound, 255, cv2.THRESH_BINARY)[1] # 140, 130 worked
+        # Produce temporary file
+        filename = temp_file_prefix_gen(os.path.join(os.path.dirname(image_file), 'temp'), '.png')
+        cv2.imwrite(filename, gray)
+        # OCR of preprocessed image file
+        ocr_text = pytesseract.image_to_string(Image.open(filename), lang='eng', config='--psm 10')
         # Delete temporary file & return
         os.unlink(filename)
         return ocr_text
@@ -147,12 +147,12 @@ def OCR_text_cleanup(ocr_text, step):
                                 ocr_text = sname.lower()
         if step == 'hitsnumber':
                 split_text = ocr_text.split(' ')
-                if len(split_text) == 2 and split_text[1] == 'hits':
+                if len(split_text) == 2 and (split_text[1] == 'hits' or split_text[1] == 'hit'):
                         ocr_text = split_text[0]
                 #else:
                 #        print('Hits text not identifiable; can\'t scroll through list properly.')
                 #        ocr_text = '1' # This is just a way to provide a signal to not bother scrolling
-        if step == 'price':
+        if step == 'priceqty':
                 ocr_text = ocr_text.replace(',', '')
                 if ocr_text.startswith('0') or not ocr_text.isdigit():
                         return False
@@ -302,7 +302,7 @@ def mouseScroll(units, direction):
         units = abs(units)
         if direction.lower() == 'down':
                 units = -units
-        pyautogui.scroll(units)
+        mouse.wheel(units)
 
 # Main call
 def main():
@@ -344,7 +344,10 @@ def main():
         RESULTS_WIDTH = 650
         RESULTS_HEIGHT = 245
         PRICE_WIDTH = 88
-        QTY_WIDTH = 55
+        PRICE_WIDTH_AND_GIL = 100
+        QTY_WIDTH = 57
+        QTY_WIDTH_AND_ARROW = QTY_WIDTH + 25
+        HQ_WIDTH = 40
         # Hard-coded declaration of program innate parameters
         RESIZE_RATIO = 8
         # Obtain system-specific values
@@ -381,15 +384,16 @@ def main():
                 servertime_x_coord, servertime_search_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'time_corner2.png'))
                 if servertime_x_coord == False:
                         servertime_x_coord, servertime_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'time_corner3.png'))
-        
         servername_screenshot_grayscale = take_screenshot((servertime_x_coord-int(SERVERNAME_WIDTH / (1920 / monitor.width)), servertime_y_coord+int(SERVERTIME_TO_CONNECTSYM_Y_OFFSET / (1920 / monitor.width)), abs(int(SERVERNAME_WIDTH / (1920 / monitor.width))), int(SERVERNAME_HEIGHT / (1080 / monitor.height))))
         resized_servername_screenshot = screenshot_preprocess_for_ocr(servername_screenshot_grayscale, SERVERNAME_WIDTH, SERVERNAME_HEIGHT, monitor, RESIZE_RATIO, temp_dir)
         servername_text = cv2_tesseract_OCR(resized_servername_screenshot)
+        os.unlink(resized_servername_screenshot)
         servername_text = OCR_text_cleanup(servername_text, 'servername')
         # Prepare clipboard text for iterative query
         ## REQUIREMENT 4
         item_names = text.rstrip('\r\n').replace('\r', '').split('\n')
         # Main iterative loop: item name query to marketboard
+        item_details_dict = {}
         for item in item_names:
                 # Search item name
                 ## REQUIREMENT 5
@@ -397,16 +401,14 @@ def main():
                 keyboardPressHotkey(['ctrl', 'a'])
                 keyboardPressSequential(['backspace'], None, None)
                 keyboardType(item, None)
-                time.sleep(0.2) # Can be necessary for long names if stuff lags
+                time.sleep(0.5) # Can be necessary for long names if stuff lags
                 keyboardPressSequential(['enter'], None, None)
+                time.sleep(2)
                 # Figure out if we have no or multiple results; either is problematic
-                match_screenshot_grayscale = take_screenshot((item_search_x_coord+int(SEARCHITEM_TO_MATCH_X_OFFSET / (1920 / monitor.width)), item_search_y_coord+int(SEARCHITEM_TO_MATCH_Y_OFFSET / (1920 / monitor.width)), abs(int(MATCH_WIDTH / (1920 / monitor.width))), int(MATCH_HEIGHT / (1080 / monitor.height))))
-                resized_match_screenshot = screenshot_preprocess_for_ocr(match_screenshot_grayscale, int(MATCH_WIDTH / (1920 / monitor.width)), int(MATCH_HEIGHT / (1920 / monitor.width)), monitor, 20, temp_dir)
-                match_text = cv2_tesseract_OCR(resized_match_screenshot)
-                match_text = OCR_text_cleanup(match_text, 'match')
-                matches = match_text.split('\n')
+                match_screenshot_grayscale = take_screenshot()
+                match_x_coord, match_y_coord = screenshot_template_match_topleftcoords(match_screenshot_grayscale, os.path.join(template_directory, '1matchonly_blank.png'))
                 ### REQUIREMENT 6
-                if len(matches) > 1 or len(matches) == 0 or matches[0].lower().startswith('no matching items'):
+                if match_x_coord == False:
                         print('There is not a single unique match for "' + item + '"... fix your inputs; program will ignore and continue.')
                         continue
                 time.sleep(2) # As before, lag
@@ -428,51 +430,126 @@ def main():
                 screenshot_grayscale = take_screenshot()
                 hit_x_coord, hit_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'result_top_left.png'))
                 hit_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_HITS_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_HITS_Y_OFFSET / (1080 / monitor.height)), abs(int(HITS_WIDTH / (1920 / monitor.width))), int(HITS_HEIGHT / (1080 / monitor.height))))                
-                for i in range(5, 20):
-                        resized_hit_screenshot = screenshot_preprocess_for_ocr(hit_screenshot_grayscale, int(HITS_WIDTH / (1920 / monitor.width)), int(HITS_HEIGHT / (1080 / monitor.height)), monitor, 10, temp_dir)
-                        hit_text = cv2_tesseract_OCR_glowingtext(resized_hit_screenshot)
-                        hit_text = OCR_text_cleanup(hit_text, 'hitsnumber')
-                        if hit_text.isdigit():
-                                hit_num = int(hit_text)
+                hit_num = False
+                for resize_ratio in [10,6,15,8,12,14,16,18,20]:
+                        if type(hit_num) == int:
                                 break
+                        for lower_bound in [220,200,205,210,215,225,230]:
+                                resized_hit_screenshot = screenshot_preprocess_for_ocr(hit_screenshot_grayscale, int(HITS_WIDTH / (1920 / monitor.width)), int(HITS_HEIGHT / (1080 / monitor.height)), monitor, resize_ratio, temp_dir)
+                                hit_text = cv2_tesseract_OCR_pricetext(resized_hit_screenshot, lower_bound)
+                                hit_text = OCR_text_cleanup(hit_text, 'hitsnumber')
+                                os.unlink(resized_hit_screenshot)
+                                if hit_text.isdigit():
+                                        hit_num = int(hit_text)
+                                        break
                 if hit_num == 0:
                         print('"' + item + '" has no listings on ' + servername_text)
                         continue
+                elif hit_num == False:
+                        print('Hit number detection failed =(. Not sure what to do but continue.')
+                        continue
                 remaining_hits = hit_num
                 # Chop the current screen into sections for each item
-                for i in range(10):
-                        ## HQ Section
-                        
-                        ## Price Section
-                        price_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTPRICE_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTPRICE_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(PRICE_WIDTH / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
-                        for resize_ratio in [15,12,14,16,6,8,10,18,20]:
-                                for lower_bound in [140,130,100,110,120,150,160]:
-                                        resized_price_screenshot = screenshot_preprocess_for_ocr(price_screenshot_grayscale, int(PRICE_WIDTH / (1920 / monitor.width)), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10), monitor, resize_ratio, temp_dir)
-                                        price_text = cv2_tesseract_OCR_pricetext(resized_price_screenshot, lower_bound) # Works most of the time with 140 lower_bound, 15 resize_ratio
-                                        price_text = OCR_text_cleanup(price_text, 'price')
-                                        if price_text != False:
+                for screen_num in range(((hit_num + 9) // 10)): # This rounds up to nearest 10/10(==1) which will correspond to the number of screens for us to scroll through
+                        for i in range(10):
+                                if remaining_hits == 0:
+                                        break
+                                # Skip redundant hits
+                                if screen_num != 0 and screen_num == ((hit_num + 9) // 10) - 1: # i.e., if it's not the first screen and it is the last screen
+                                        if remaining_hits < 10:
+                                                if i < (10 - remaining_hits):
+                                                        continue
+                                ## Qty Section
+                                ### REQUIREMENT 8
+                                qty_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTQTY_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTQTY_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(QTY_WIDTH / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
+                                use_template = False
+                                for resize_ratio in [6,15,8,12,10,14,16,18,20]:
+                                        if use_template == True:
                                                 break
-                        ## Qty Section
-                        qty_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTQTY_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTQTY_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(QTY_WIDTH / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
-                        for resize_ratio in [15,12,14,16,6,8,10,18,20]:
-                                for lower_bound in [140,130,100,110,120,150,160]:
-                                        resized_qty_screenshot = screenshot_preprocess_for_ocr(qty_screenshot_grayscale, int(PRICE_WIDTH / (1920 / monitor.width)), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10), monitor, resize_ratio, temp_dir)
-                                        qty_text = cv2_tesseract_OCR_pricetext(resized_qty_screenshot, lower_bound) # Works most of the time with 140 lower_bound, 15 resize_ratio
-                                        qty_text = OCR_text_cleanup(qty_text, 'qty')
-                                        if price_text != False:
+                                        for lower_bound in [140,130,100,110,120,150,160]:
+                                                resized_qty_screenshot = screenshot_preprocess_for_ocr(qty_screenshot_grayscale, int(PRICE_WIDTH / (1920 / monitor.width)), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10), monitor, resize_ratio, temp_dir)
+                                                qty_text = cv2_tesseract_OCR_pricetext(resized_qty_screenshot, lower_bound) # Works most of the time with 140 lower_bound, 15 resize_ratio
+                                                os.unlink(resized_qty_screenshot)
+                                                if qty_text == '': # When this occurs, it's probable the quantity is a single digit
+                                                        use_template = True
+                                                        break
+                                                qty_text = OCR_text_cleanup(qty_text, 'priceqty')
+                                                if qty_text != False:
+                                                        break
+                                if use_template == True:
+                                        qty_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTQTY_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTQTY_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(QTY_WIDTH_AND_ARROW / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
+                                        for x in range(1, 10):
+                                                qty_x_coord, qty_y_coord = screenshot_template_match_topleftcoords(qty_screenshot_grayscale, os.path.join(template_directory, 'num' + str(x) + '.png'))
+                                                if qty_x_coord != False:
+                                                        qty_text = str(x)
+                                                        break
+                                if qty_text == '':
+                                        print('Item quantity could not be derived properly; will skip and continue.')
+                                        remaining_hits -= 1
+                                        continue
+                                ## Price Section
+                                price_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTPRICE_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTPRICE_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(PRICE_WIDTH / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
+                                price_text = False
+                                use_template = False
+                                for resize_ratio in [15,12,14,16,6,8,10,18,20]:
+                                        if use_template == True:
                                                 break
-                        
+                                        for lower_bound in [140,130,100,110,120,150,160]:
+                                                resized_price_screenshot = screenshot_preprocess_for_ocr(price_screenshot_grayscale, int(PRICE_WIDTH / (1920 / monitor.width)), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10), monitor, resize_ratio, temp_dir)
+                                                price_text = cv2_tesseract_OCR_pricetext(resized_price_screenshot, lower_bound) # Works most of the time with 140 lower_bound, 15 resize_ratio
+                                                os.unlink(resized_price_screenshot)
+                                                if price_text == '': # When this occurs, it's probable the quantity is a single digit
+                                                        use_template = True
+                                                        break
+                                                price_text = OCR_text_cleanup(price_text, 'priceqty')
+                                                if price_text != False:
+                                                        break
+                                if use_template == True:
+                                        price_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTPRICE_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTPRICE_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(PRICE_WIDTH_AND_GIL / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
+                                        for x in range(1, 10):
+                                                price_x_coord, price_y_coord = screenshot_template_match_topleftcoords(price_screenshot_grayscale, os.path.join(template_directory, str(x) + 'gil.png'))
+                                                if price_x_coord != False:
+                                                        price_text = str(x)
+                                                        break
+                                if price_text == False:
+                                        print('Item price could not be derived properly; will skip and continue.')
+                                        remaining_hits -= 1
+                                        continue
+                                ## HQ Section
+                                hq_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTHQ_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTHQ_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(HQ_WIDTH / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
+                                hq_x_coord, hq_y_coord = screenshot_template_match_topleftcoords(hq_screenshot_grayscale, os.path.join(template_directory, 'hq_symbol.png'))
+                                if hq_x_coord != False:
+                                        item_quality = 'HQ'
+                                else:
+                                        item_quality = 'NQ'
+                                # Store details in dict
+                                if item not in item_details_dict:
+                                        item_details_dict[item] = [[price_text, qty_text, item_quality]]
+                                else:
+                                        item_details_dict[item].append([price_text, qty_text, item_quality])
+                                # Update loop condition to track when we've finished checking all the items
+                                remaining_hits -= 1
+                        # Scroll down 10 units to next screen if relevant
+                        if remaining_hits >= 1:
+                                mouseMove([int(result_x_coord+int((SEARCHRESULT_TO_LISTPRICE_X_OFFSET+10) / (1080 / monitor.height))), int(result_y_coord+int((SEARCHRESULT_TO_LISTPRICE_Y_OFFSET+10) / (1080 / monitor.height)))]) # +10 to give a little extra push
+                                for x in range(10):
+                                        mouseScroll(1, 'down')
+                                        time.sleep(0.1)
+                                mouseMove([int(result_x_coord), int(result_y_coord)]) # Need to move it again to make sure we don't obscure text with the popup item info
+                                time.sleep(0.5) # Prevent issues with the item info window not instantly disappearing
+        # Produce file output
+        print('Alright, all done! Tell me where you want the output to be saved to.')
+        while True:
+                output_file_name = input()
+                output_file_name = os.path.abspath(output_file_name)
+                if os.path.isfile(output_file_name):
+                        print(output_file_name + ' already exists. Delete/move/rename this file, or specify a new file name now.')
+                        continue
+                elif not os.path.isdir(os.path.dirname(output_file_name)):
+                        print('"' + os.path.dirname(output_file_name) + '" directory does not exist. Either create this directory, or specify a new file name now.')
+                        continue
                 
-                ## DUPLICATE BELOW
-                SEARCHRESULT_TO_LIST_X_OFFSET = 0
-                SEARCHRESULT_TO_LIST_Y_OFFSET = 110
-                for i in range(10):
-                        item_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LIST_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LIST_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(RESULTS_WIDTH / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
-                        resized_item_screenshot = screenshot_preprocess_for_ocr(item_screenshot_grayscale, int(RESULTS_WIDTH / (1920 / monitor.width)), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10), monitor, 10, temp_dir)
-                        hit_text = cv2_tesseract_OCR_glowingtext(resized_item_screenshot)
-                SEARCHRESULT_TO_LIST_X_OFFSET
-                ## TBD: Chop screenshot line-by-line and derive HQ/NQ, price/unit, and number of units
-                #result_text = cv2_tesseract_OCR_glowingtext(resized_result_screenshot)
+                break
                 
 if __name__ == '__main__':
         #main()
