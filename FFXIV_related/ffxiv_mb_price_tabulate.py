@@ -23,7 +23,7 @@ LIST OF REQUIREMENTS:
 '''
 
 # Import modules
-import pyperclip, pytesseract, cv2, screeninfo, os, ctypes, pyautogui, time
+import pyperclip, pytesseract, cv2, screeninfo, os, ctypes, pyautogui, time, mouse
 import numpy as np
 from PIL import Image
 from mss import mss
@@ -260,18 +260,11 @@ def main():
         '''
         pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
         template_directory = r'D:\Libraries\Documents\GitHub\personal_projects\FFXIV_related\template_images\mb_price_tabulate'
-        temp_dir = r'D:\Libraries\Documents\GitHub\personal_projects\FFXIV_related\development_assistants\tmp_dir'
         # Hard-coded declaration of 1080p template offset values
         ITEM_SEARCH_X_OFFSET = 100
         ITEM_SEARCH_Y_OFFSET = 70
-        SERVERTIME_TO_CONNECTSYM_X_OFFSET = -25
-        SERVERTIME_TO_CONNECTSYM_Y_OFFSET = -7
-        CONNECTSYM_X_OFFSET = -145
-        CONNECTSYM_Y_OFFSET = 30
         ITEM_CLICK_X_OFFSET = 365
         ITEM_CLICK_Y_OFFSET = 75
-        SEARCHITEM_TO_MATCH_X_OFFSET = 350
-        SEARCHITEM_TO_MATCH_Y_OFFSET = 60
         SEARCHRESULT_TO_HITS_X_OFFSET = 585
         SEARCHRESULT_TO_HITS_Y_OFFSET = 362
         SEARCHRESULT_TO_LISTHQ_X_OFFSET = 0
@@ -285,169 +278,162 @@ def main():
         TOPRIGHT_OF_SCREEN_X_OFFSET = 1560
         # Hard-coded declaration of screenshot dimensions
         TOPRIGHT_OF_SCREEN_HEIGHT = 60
-        MATCH_WIDTH = 345
-        MATCH_HEIGHT = 501
         HITS_WIDTH = 87 # was 57, can be 87 to get hits text as well
         HITS_HEIGHT = 18
-        RESULTS_WIDTH = 650
         RESULTS_HEIGHT = 245
         PRICE_WIDTH = 88
-        PRICE_WIDTH_AND_GIL = 100
         QTY_WIDTH = 57
-        QTY_WIDTH_AND_ARROW = QTY_WIDTH + 25
         HQ_WIDTH = 40
-        # Hard-coded declaration of program innate parameters
-        RESIZE_RATIO = 8
         # Obtain system-specific values
         monitor = screeninfo.get_monitors()[0] # This is our main monitor's dimensions
-        
         # Program start-up
         ## REQUIREMENT 1
         print('Welcome to the FFXIV Market Board Price Tabulator!')
-        print('Make your way over to a marketboard and bring up the item search box; configure the "partial match" setting as required for your needs.')
-        print('Press ENTER in this dialog box when this has been done.')
         while True:
-                ## REQUIREMENT 2
-                button=input()
-                screenshot_grayscale = take_screenshot()
-                item_search_x_coord, item_search_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'mb_top_left.png'))
-                if item_search_x_coord == False:
-                        print('Wasn\'t able to locate the marketboard item search box. Make sure it\'s open on your screen and try again by pressing ENTER.')
-                        continue
-                break
-        print('Next, copy a list of items into your clipboard and then press ENTER.')
-        while True:
-                ## REQUIREMENT 4
-                button=input()
-                text=pyperclip.paste()
-                if text == '':
-                        print('Nothing was in your clipboard! Copy your text and try again by pressing ENTER.')
-                        continue
-                break
-        print('Alright, sit back and leave your mouse and keyboard alone for a short while.') # End of program start-up
-        # Figure out what server the user is on
-        ## REQUIREMENT 3
-        while True:
-                servername_screenshot_grayscale = take_screenshot((int(TOPRIGHT_OF_SCREEN_X_OFFSET / (1920 / monitor.width)), 0, abs(int(int(1920-TOPRIGHT_OF_SCREEN_X_OFFSET) / (1920 / monitor.width))), int(TOPRIGHT_OF_SCREEN_HEIGHT / (1080 / monitor.height))))
-                server_name = screenshot_server_automatic_capture(servername_screenshot_grayscale, template_directory, 'server.png')
-                if server_name != False:
-                        break
-                else:
-                        print('Server name wasn\'t captured properly! Move the screen a bit then I\'ll try again.')
-                        time.sleep(5)
-        # Prepare clipboard text for iterative query
-        ## REQUIREMENT 4
-        item_names = text.rstrip('\r\n').replace('\r', '').split('\n')
-        # Main iterative loop: item name query to marketboard
-        item_details_dict = {}
-        for item in item_names:
-                # Search item name
-                ## REQUIREMENT 5
-                mousePress([int(item_search_x_coord+int(ITEM_SEARCH_X_OFFSET / (1920 / monitor.width))), int(item_search_y_coord+int(ITEM_SEARCH_Y_OFFSET / (1920 / monitor.width)))], 'left', 1, 0.0, 0.5)
-                keyboardPressHotkey(['ctrl', 'a'])
-                keyboardPressSequential(['backspace'], None, None)
-                keyboardType(item, None)
-                time.sleep(0.5) # Can be necessary for long names if stuff lags
-                keyboardPressSequential(['enter'], None, None)
-                time.sleep(2)
-                # Figure out if we have no or multiple results; either is problematic
-                match_screenshot_grayscale = take_screenshot()
-                match_x_coord, match_y_coord = screenshot_template_match_topleftcoords(match_screenshot_grayscale, os.path.join(template_directory, '1matchonly_blank.png'))
-                ### REQUIREMENT 6
-                if match_x_coord == False:
-                        print('There is not a single unique match for "' + item + '"... fix your inputs; program will ignore and continue.')
-                        continue
-                time.sleep(2) # As before, lag
-                # Click item
-                ### REQUIREMENT 7
+                print('Make your way over to a marketboard and bring up the item search box; configure the "partial match" setting as required for your needs.')
+                print('Press ENTER in this dialog box when this has been done.')
                 while True:
-                        mousePress([int(item_search_x_coord+int(ITEM_CLICK_X_OFFSET / (1920 / monitor.width))), int(item_search_y_coord+int(ITEM_CLICK_Y_OFFSET / (1920 / monitor.width)))], 'left', 2, 0.5, 0.5)
-                        time.sleep(1)
-                        # Detect "Please wait and try..." statements
-                        ### REQUIREMENT 7.2
+                        ## REQUIREMENT 2
+                        button=input()
                         screenshot_grayscale = take_screenshot()
-                        result_x_coord, result_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'result_top_left.png'))
-                        wait_x_coord, wait_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'please_wait.png'))
-                        if wait_x_coord != False:
-                                mousePress([int(result_x_coord+int(SEARCHRESULT_TO_CLOSE_X_OFFSET / (1920 / monitor.width))), int(result_y_coord+int(SEARCHRESULT_TO_CLOSE_Y_OFFSET / (1920 / monitor.width)))], 'left', 2, 0.5, 0.5)
+                        item_search_x_coord, item_search_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'mb_top_left.png'))
+                        if item_search_x_coord == False:
+                                print('Wasn\'t able to locate the marketboard item search box. Make sure it\'s open on your screen and try again by pressing ENTER.')
                                 continue
                         break
-                # Search results box anchor point [most of the below screenshotting uses this as an "anchor" to project x and y direction from]
-                screenshot_grayscale = take_screenshot()
-                hit_x_coord, hit_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'result_top_left.png'))
-                # Detect the number of hits  
-                hit_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_HITS_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_HITS_Y_OFFSET / (1080 / monitor.height)), abs(int(HITS_WIDTH / (1920 / monitor.width))), int(HITS_HEIGHT / (1080 / monitor.height))))                
-                hits = screenshot_number_automatic_capture(hit_screenshot_grayscale, template_directory, 'glow.png')
-                if hits == False:
-                        print('Hit number detection failed... Not sure what to do but continue.')
-                        continue
-                hits = int(hits)
-                if hits == 0:
-                        continue
-                remaining_hits = hits
-                # Chop the current screen into sections for each item
-                for screen_num in range(((hits + 9) // 10)): # This rounds up to nearest 10/10(==1) which will correspond to the number of screens for us to scroll through
-                        for i in range(10):
-                                if remaining_hits == 0:
-                                        break
-                                # Skip redundant hits
-                                if screen_num != 0 and screen_num == ((hits + 9) // 10) - 1: # i.e., if it's not the first screen and it is the last screen
-                                        if remaining_hits < 10:
-                                                if i < (10 - remaining_hits):
-                                                        continue
-                                ## Qty Section
-                                ### REQUIREMENT 8
-                                qty_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTQTY_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTQTY_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(QTY_WIDTH / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
-                                qty = screenshot_number_automatic_capture(qty_screenshot_grayscale, template_directory, 'qty.png')
-                                if qty == '':
-                                        print('Item quantity could not be derived properly; will skip and continue.')
-                                        remaining_hits -= 1
+                print('Next, copy a list of items into your clipboard and then press ENTER.')
+                while True:
+                        ## REQUIREMENT 4
+                        button=input()
+                        text=pyperclip.paste()
+                        if text == '':
+                                print('Nothing was in your clipboard! Copy your text and try again by pressing ENTER.')
+                                continue
+                        break
+                print('Alright, sit back and leave your mouse and keyboard alone for a short while.') # End of program start-up
+                # Figure out what server the user is on
+                ## REQUIREMENT 3
+                while True:
+                        servername_screenshot_grayscale = take_screenshot((int(TOPRIGHT_OF_SCREEN_X_OFFSET / (1920 / monitor.width)), 0, abs(int(int(1920-TOPRIGHT_OF_SCREEN_X_OFFSET) / (1920 / monitor.width))), int(TOPRIGHT_OF_SCREEN_HEIGHT / (1080 / monitor.height))))
+                        server_name = screenshot_server_automatic_capture(servername_screenshot_grayscale, template_directory, 'server.png')
+                        if server_name != False:
+                                break
+                        else:
+                                print('Server name wasn\'t captured properly! Move the screen a bit then I\'ll try again.')
+                                time.sleep(5)
+                # Prepare clipboard text for iterative query
+                ## REQUIREMENT 4
+                item_names = text.rstrip('\r\n').replace('\r', '').split('\n')
+                # Main iterative loop: item name query to marketboard
+                item_details_dict = {}
+                for item in item_names:
+                        # Search item name
+                        ## REQUIREMENT 5
+                        mousePress([int(item_search_x_coord+int(ITEM_SEARCH_X_OFFSET / (1920 / monitor.width))), int(item_search_y_coord+int(ITEM_SEARCH_Y_OFFSET / (1920 / monitor.width)))], 'left', 1, 0.0, 0.5)
+                        keyboardPressHotkey(['ctrl', 'a'])
+                        keyboardPressSequential(['backspace'], None, None)
+                        keyboardType(item, None)
+                        time.sleep(0.5) # Can be necessary for long names if stuff lags
+                        keyboardPressSequential(['enter'], None, None)
+                        time.sleep(1)
+                        # Figure out if we have no or multiple results; either is problematic
+                        match_screenshot_grayscale = take_screenshot()
+                        match_x_coord, match_y_coord = screenshot_template_match_topleftcoords(match_screenshot_grayscale, os.path.join(template_directory, 'nomatch.png'))
+                        ### REQUIREMENT 6
+                        if match_x_coord != False:
+                                print('There is no match for "' + item + '"... fix your inputs; program will ignore and continue.')
+                                continue
+                        # Click item
+                        ### REQUIREMENT 7
+                        while True:
+                                mousePress([int(item_search_x_coord+int(ITEM_CLICK_X_OFFSET / (1920 / monitor.width))), int(item_search_y_coord+int(ITEM_CLICK_Y_OFFSET / (1920 / monitor.width)))], 'left', 2, 0.5, 0.5)
+                                time.sleep(1)
+                                # Detect "Please wait and try..." statements
+                                ### REQUIREMENT 7.2
+                                screenshot_grayscale = take_screenshot()
+                                result_x_coord, result_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'result_top_left.png'))
+                                wait_x_coord, wait_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'please_wait.png'))
+                                if wait_x_coord != False:
+                                        mousePress([int(result_x_coord+int(SEARCHRESULT_TO_CLOSE_X_OFFSET / (1920 / monitor.width))), int(result_y_coord+int(SEARCHRESULT_TO_CLOSE_Y_OFFSET / (1920 / monitor.width)))], 'left', 2, 0.5, 0.5)
                                         continue
-                                ## Price Section
-                                price_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTPRICE_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTPRICE_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(PRICE_WIDTH / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
-                                price = screenshot_number_automatic_capture(price_screenshot_grayscale, template_directory, 'gil.png')
-                                if price == False:
-                                        print('Item price could not be derived properly; will skip and continue.')
+                                break
+                        # Search results box anchor point [most of the below screenshotting uses this as an "anchor" to project x and y direction from]
+                        screenshot_grayscale = take_screenshot()
+                        hit_x_coord, hit_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'result_top_left.png'))
+                        # Detect the number of hits  
+                        hit_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_HITS_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_HITS_Y_OFFSET / (1080 / monitor.height)), abs(int(HITS_WIDTH / (1920 / monitor.width))), int(HITS_HEIGHT / (1080 / monitor.height))))                
+                        hits = screenshot_number_automatic_capture(hit_screenshot_grayscale, template_directory, 'glow.png')
+                        if hits == False:
+                                print('Hit number detection failed... Not sure what to do but continue.')
+                                continue
+                        hits = int(hits)
+                        if hits == 0:
+                                continue
+                        remaining_hits = hits
+                        # Chop the current screen into sections for each item
+                        for screen_num in range(((hits + 9) // 10)): # This rounds up to nearest 10/10(==1) which will correspond to the number of screens for us to scroll through
+                                for i in range(10):
+                                        if remaining_hits == 0:
+                                                break
+                                        # Skip redundant hits
+                                        if screen_num != 0 and screen_num == ((hits + 9) // 10) - 1: # i.e., if it's not the first screen and it is the last screen
+                                                if remaining_hits < 10:
+                                                        if i < (10 - remaining_hits):
+                                                                continue
+                                        ## Qty Section
+                                        ### REQUIREMENT 8
+                                        qty_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTQTY_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTQTY_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(QTY_WIDTH / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
+                                        qty = screenshot_number_automatic_capture(qty_screenshot_grayscale, template_directory, 'qty.png')
+                                        if qty == '':
+                                                print('Item quantity could not be derived properly; will skip and continue.')
+                                                remaining_hits -= 1
+                                                continue
+                                        ## Price Section
+                                        price_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTPRICE_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTPRICE_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(PRICE_WIDTH / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
+                                        price = screenshot_number_automatic_capture(price_screenshot_grayscale, template_directory, 'gil.png')
+                                        if price == False:
+                                                print('Item price could not be derived properly; will skip and continue.')
+                                                remaining_hits -= 1
+                                                continue
+                                        ## HQ Section
+                                        hq_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTHQ_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTHQ_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(HQ_WIDTH / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
+                                        hq_x_coord, hq_y_coord = screenshot_template_match_topleftcoords(hq_screenshot_grayscale, os.path.join(template_directory, 'hq_symbol.png'))
+                                        if hq_x_coord != False:
+                                                item_quality = 'HQ'
+                                        else:
+                                                item_quality = 'NQ'
+                                        # Store details in dict
+                                        if item not in item_details_dict:
+                                                item_details_dict[item] = [[price, qty, item_quality]]
+                                        else:
+                                                item_details_dict[item].append([price, qty, item_quality])
+                                        # Update loop condition to track when we've finished checking all the items
                                         remaining_hits -= 1
-                                        continue
-                                ## HQ Section
-                                hq_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_LISTHQ_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_LISTHQ_Y_OFFSET / (1080 / monitor.height))+int((abs(int(RESULTS_HEIGHT / (1080 / monitor.height)))/10)*i), abs(int(HQ_WIDTH / (1920 / monitor.width))), int(int(RESULTS_HEIGHT / (1080 / monitor.height))/10)))
-                                hq_x_coord, hq_y_coord = screenshot_template_match_topleftcoords(hq_screenshot_grayscale, os.path.join(template_directory, 'hq_symbol.png'))
-                                if hq_x_coord != False:
-                                        item_quality = 'HQ'
-                                else:
-                                        item_quality = 'NQ'
-                                # Store details in dict
-                                if item not in item_details_dict:
-                                        item_details_dict[item] = [[price, qty, item_quality]]
-                                else:
-                                        item_details_dict[item].append([price, qty, item_quality])
-                                # Update loop condition to track when we've finished checking all the items
-                                remaining_hits -= 1
-                        # Scroll down 10 units to next screen if relevant
-                        if remaining_hits >= 1:
-                                mouseMove([int(result_x_coord+int((SEARCHRESULT_TO_LISTPRICE_X_OFFSET+10) / (1080 / monitor.height))), int(result_y_coord+int((SEARCHRESULT_TO_LISTPRICE_Y_OFFSET+10) / (1080 / monitor.height)))]) # +10 to give a little extra push
-                                for x in range(10):
-                                        mouseScroll(1, 'down')
-                                        time.sleep(0.1)
-                                mouseMove([int(result_x_coord), int(result_y_coord)]) # Need to move it again to make sure we don't obscure text with the popup item info
-                                time.sleep(0.5) # Prevent issues with the item info window not instantly disappearing
-        # Produce file output
-        print('Alright, all done! Tell me where you want the output to be saved to.')
-        while True:
-                output_file_name = input()
-                output_file_name = os.path.abspath(output_file_name)
-                if os.path.isfile(output_file_name):
-                        print(output_file_name + ' already exists. Delete/move/rename this file, or specify a new file name now.')
-                        continue
-                elif not os.path.isdir(os.path.dirname(output_file_name)):
-                        print('"' + os.path.dirname(output_file_name) + '" directory does not exist. Either create this directory, or specify a new file name now.')
-                        continue
-                
-                break
-                
+                                # Scroll down 10 units to next screen if relevant
+                                if remaining_hits >= 1:
+                                        mouseMove([int(result_x_coord+int((SEARCHRESULT_TO_LISTPRICE_X_OFFSET+10) / (1080 / monitor.height))), int(result_y_coord+int((SEARCHRESULT_TO_LISTPRICE_Y_OFFSET+10) / (1080 / monitor.height)))]) # +10 to give a little extra push
+                                        for x in range(10):
+                                                mouseScroll(1, 'down')
+                                                time.sleep(0.1)
+                                        mouseMove([int(result_x_coord), int(result_y_coord)]) # Need to move it again to make sure we don't obscure text with the popup item info
+                                        time.sleep(0.5) # Prevent issues with the item info window not instantly disappearing
+                        # Close item screen
+                        mousePress([int(result_x_coord+int(SEARCHRESULT_TO_CLOSE_X_OFFSET / (1920 / monitor.width))), int(result_y_coord+int(SEARCHRESULT_TO_CLOSE_Y_OFFSET / (1920 / monitor.width)))], 'left', 2, 0.5, 0.5)
+                        
+                # Store result in clipboard paste-friendly format
+                output_text = server_name + '\nItem_name\tPrice\tQuantity\tTotal\tQuality\n'
+                for k, v in item_details_dict.items():
+                        output_text += k
+                        for item_details in v:
+                                total = int(item_details[0]) * int(item_details[1])
+                                quality = ''
+                                if item_details[2] == 'HQ':
+                                        quality = '*'
+                                output_text += '\t' + '\t'.join([item_details[0], item_details[1], str(total), quality]) + '\n'
+                pyperclip.copy(output_text)
+                print('Alright, all done! I\'ve stored the result in your clipboard for pasting into an Excel document or something like that.\n')
+        
 if __name__ == '__main__':
-        #main()
-        pass
+        main()
 
 ## TO FIX: the (1910 / monitor.width) etc., sections are flawed; y should always be height, x is width
