@@ -336,6 +336,11 @@ def xivapi_manual_data_entry(api_private_key):
                         shopping_cart = dict_merge(shopping_cart, item_ingredient_dict)
                 # Format list of required materials and print for user inspection
                 print(shopping_cart_pretty_table(shopping_cart))
+                # Store in clipboard for good measure
+                output_to_clipboard = ''
+                for material in shopping_cart.keys():
+                        output_to_clipboard += material + '\n'
+                pyperclip.copy(output_to_clipboard)
                 print('')
 
 def screenshot_preprocess_for_ocr(monitor_object, x_topleft, y_topleft, x_topleft_offset, y_topleft_offset, RESIZE_RATIO, temp_dir):
