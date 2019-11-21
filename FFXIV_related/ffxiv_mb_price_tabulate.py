@@ -374,6 +374,7 @@ def main():
                                 continue
                         hits = int(hits)
                         if hits == 0:
+                                mousePress([int(result_x_coord+int(SEARCHRESULT_TO_CLOSE_X_OFFSET / (1920 / monitor.width))), int(result_y_coord+int(SEARCHRESULT_TO_CLOSE_Y_OFFSET / (1920 / monitor.width)))], 'left', 2, 0.5, 0.5)
                                 continue
                         remaining_hits = hits
                         # Chop the current screen into sections for each item
