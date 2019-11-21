@@ -20,7 +20,7 @@ http://forum.square-enix.com/ffxiv/threads/354596-Crafting-Log-Lists-on-Garland-
 '''
 
 # Import modules
-import os, json, pytesseract, cv2, screeninfo, keyboard, queue, time, win32clipboard
+import os, json, pytesseract, cv2, screeninfo, keyboard, queue, time, win32clipboard, pyperclip, sys
 import numpy as np
 from urllib.request import Request, urlopen
 from PIL import Image
@@ -303,42 +303,48 @@ def image_to_clipboard(image_file):
         send_to_clipboard(win32clipboard.CF_DIB, data)
 
 def xivapi_manual_data_entry(api_private_key):
-        print('To use this program in MANUAL mode, enter the name of an object to retrieve details.')
+        print('To use this program in MANUAL mode, copy the name of an object to your clipboard to retrieve details.')
         print('Specify the full item name, or alternatively use wildcard syntax to autocomplete or find multiple matches.')
         print('e.g., "Bronze spatha" and "Bronze sp*" are both valid searches (without quotations).')
-        print('Shopping cart can be emptied by typing "clear"; program can be exited by typing "quit"')
+        print('Shopping cart can be emptied by typing "clear"; program can be exited by typing "quit"; multiple items can be copied if separated vertically by newlines.')
         shopping_cart = {} # This serves as our ongoing list of ingredients
         while True:
                 # User input loop
                 while True:
-                        print('Enter item name here')
-                        item_name = input()
+                        print('Copy item name(s) then press ENTER, or type "quit" or "clear".')
+                        text_entry = input()
+                        item_names = pyperclip.paste()
                         # Program exit condition
-                        if item_name.lower() == 'quit':
-                                quit
+                        if text_entry.lower() == 'quit':
+                                sys.exit()
                         # Shopping cart clear
-                        elif item_name.lower() == 'clear':
+                        elif text_entry.lower() == 'clear':
                                 shopping_cart = {}
                                 continue
                         # Curate input
-                        item_name = item_name.strip(' \r\n')
+                        item_names = item_names.strip(' \r\n').replace('\r','').split('\n')
                         # Validate input
-                        if len(item_name) < 1:
+                        if item_names == ['']:
                                 print('Name value must be specified.')
                                 continue
                         # Loop exits here if conditions were met
                         break
                 # Encode item name for proper searching
-                item_name = url_utf8_encode(item_name)
-                # Obtain relevant database item as JSON
-                item_json = xivapi_automated_query(item_name, api_private_key)
-                if item_json == False:
-                        print('XIVAPI query failed; try again with new search terms or exit program with "quit"')
-                        continue
-                # Extract materials from JSON
-                item_ingredient_dict = xivapi_recipe_data_extraction(item_json)
-                # Add materials into the shopping cart
-                shopping_cart = dict_merge(shopping_cart, item_ingredient_dict)
+                for item_name in item_names:
+                        item_name = url_utf8_encode(item_name)
+                        # Obtain relevant database item as JSON
+                        try:
+                                item_json = xivapi_automated_query(item_name, api_private_key, 'recipe')
+                        except Exception as e:
+                                automated_query_exception_handler(item_name, e)
+                                continue
+                        if item_json == False:
+                                print('XIVAPI query failed for "' + item_name + '"; ingredients will be skipped and program will continue.')
+                                continue
+                        # Extract materials from JSON
+                        item_ingredient_dict = xivapi_recipe_data_extraction(item_json)
+                        # Add materials into the shopping cart
+                        shopping_cart = dict_merge(shopping_cart, item_ingredient_dict)
                 # Format list of required materials and print for user inspection
                 print(shopping_cart_pretty_table(shopping_cart))
                 print('')
@@ -366,6 +372,26 @@ def xivapi_screenshot_to_OCR_pipeline(monitor_object, template_file, RESIZE_RATI
         ocr_text = OCR_text_cleanup(ocr_text)
         return temp_filename, ocr_text
 
+def automated_query_exception_handler(item_name, e):
+        if str(e) == 'HTTP Error 400: Bad Request':
+                print(e)
+                print('XIVAPI query failed')
+                print('It is probable that the URL was not encoded properly (i.e., tell Zac what the item name is and he\'ll fix it)')
+                print('Item name = "' + item_name + '"')
+                print('Ingredients skipped and program will continue operation')
+        if str(e) == 'HTTP Error 404: Not found':
+                print(e)
+                print('XIVAPI query failed')
+                print('This item does not appear to be within the XIVAPI database. Not a lot I can do about that.')
+                print('Item name = "' + item_name + '"')
+                print('Ingredients skipped and program will continue operation')
+        else:
+                print(e)
+                print('XIVAPI query failed')
+                print('This exception is currently unhandled. Sorry. Tell Zac what the item name was and what the error messsage above was.')
+                print('Item name = "' + item_name + '"')
+                print('Ingredients skipped and program will continue operation')
+
 def xivapi_auto_item_name_looping(name_list_1, name_list_2, iteration_number, api_private_key, recipe_type):
         failed = False
         item_json = False
@@ -380,24 +406,7 @@ def xivapi_auto_item_name_looping(name_list_1, name_list_2, iteration_number, ap
                 try:
                         item_json = xivapi_automated_query(item_name, api_private_key, recipe_type)
                 except Exception as e:
-                        if str(e) == 'HTTP Error 400: Bad Request':
-                                print(e)
-                                print('XIVAPI query failed')
-                                print('It is probable that the URL was not encoded properly (i.e., tell Zac what the item name is and he\'ll fix it)')
-                                print('Item name = "' + item_name + '"')
-                                print('Ingredients skipped and program will continue operation')
-                        if str(e) == 'HTTP Error 404: Not found':
-                                print(e)
-                                print('XIVAPI query failed')
-                                print('This item does not appear to be within the XIVAPI database. Not a lot I can do about that.')
-                                print('Item name = "' + item_name + '"')
-                                print('Ingredients skipped and program will continue operation')
-                        else:
-                                print(e)
-                                print('XIVAPI query failed')
-                                print('This exception is currently unhandled. Sorry. Tell Zac what the item name was and what the error messsage above was.')
-                                print('Item name = "' + item_name + '"')
-                                print('Ingredients skipped and program will continue operation')
+                        automated_query_exception_handler(item_name, e)
                 if item_json == False and failed == False:
                         failed = True
                         continue
@@ -501,7 +510,7 @@ def main():
         the code; need to learn how to do that first!
         '''
         pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-        template_file = r'C:\Users\Zac\Desktop\FFXIV_coding\gc_template.png'
+        template_file = r'D:\Libraries\Documents\GitHub\personal_projects\FFXIV_related\template_images\gc_template.png'
         api_private_key = '7a9eb114d3cb4c588c3b8c980640a58b3e39573f461e4dc9b925716d28103d32'
         # Allow user to determine what mode the program will run in
         print('Welcome to the FFXIV Grand Company Delivery Mission helper!')
