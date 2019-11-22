@@ -338,8 +338,8 @@ def xivapi_manual_data_entry(api_private_key):
                 print(shopping_cart_pretty_table(shopping_cart))
                 # Store in clipboard for good measure
                 output_to_clipboard = ''
-                for material in shopping_cart.keys():
-                        output_to_clipboard += material + '\n'
+                for material, quantity in shopping_cart.items():
+                        output_to_clipboard += material + '\t' + str(quantity) + '\n'
                 pyperclip.copy(output_to_clipboard)
                 print('')
 
@@ -498,8 +498,8 @@ def xivapi_automated_gc_ingredients(template_file, api_private_key):
                 print('\n'.join(provision_names))
                 print('')
                 output_to_clipboard = '\n'.join(supply_names) + '\n' + '\n'.join(provision_names) + '\n#Materials'
-                for material in shopping_cart.keys():
-                        output_to_clipboard += '\n' + material
+                for material, quantity in shopping_cart.items():
+                        output_to_clipboard += '\n' + material + '\t' + str(quantity) + '\n'
                 pyperclip.copy(output_to_clipboard)
                 print('All done! A list of items has been saved to your clipboard, too! Exclamation marks!!')
 
