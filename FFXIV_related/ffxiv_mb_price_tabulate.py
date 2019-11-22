@@ -52,7 +52,7 @@ def screenshot_template_match_topleftcoords(screenshot_grayscale, template_file,
         y_coord, x_coord = matches[0][0], matches[1][0]
         return x_coord, y_coord
 
-def screenshot_template_match_multiple(screenshot_grayscale, template_file, threshold=0.9):
+def screenshot_template_match_multiple(screenshot_grayscale, template_file, threshold=0.95):
         '''Some code borrowed from
         https://www.tautvidas.com/blog/2018/02/automating-basic-tasks-in-games-with-opencv-and-python/
         '''
@@ -89,7 +89,7 @@ def screenshot_number_automatic_capture(screenshot_grayscale, template_directory
 def screenshot_server_automatic_capture(screenshot_grayscale, template_directory, file_suffix):
         KNOWN_SERVERS = ['Adamantoise', 'Cactaur', 'Faerie', 'Gilgamesh', 'Jenova', 'Midgardsormr', 'Sargatanas', 'Siren'] # This is sorted according to template files 1server.png, 2server.png, etc.,
         for x in range(1, 9):
-                x_coords, y_coords = screenshot_template_match_multiple(screenshot_grayscale, os.path.join(template_directory, str(x) + file_suffix))
+                x_coords, y_coords = screenshot_template_match_multiple(screenshot_grayscale, os.path.join(template_directory, str(x) + file_suffix), 0.9)
                 if x_coords != False:
                         return KNOWN_SERVERS[x-1] # Need to do this since our files start at 1, but list is indexed starting at 0
         return False
