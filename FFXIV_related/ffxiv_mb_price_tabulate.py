@@ -71,10 +71,10 @@ def screenshot_template_match_multiple(screenshot_grayscale, template_file, thre
                 x_coords.append(matches[1][i])
         return x_coords, y_coords
 
-def screenshot_number_automatic_capture(screenshot_grayscale, template_directory, file_suffix):
+def screenshot_number_automatic_capture(screenshot_grayscale, template_directory, file_suffix, threshold=0.95):
         digit_list = []
         for x in range(0, 10):
-                x_coords, y_coords = screenshot_template_match_multiple(screenshot_grayscale, os.path.join(template_directory, str(x) + file_suffix))
+                x_coords, y_coords = screenshot_template_match_multiple(screenshot_grayscale, os.path.join(template_directory, str(x) + file_suffix), threshold)
                 if x_coords != False:
                         for x_coord in x_coords:
                                 digit_list.append([x_coord, x])
@@ -295,6 +295,17 @@ def main():
                                 print('Nothing was in your clipboard! Copy your text and try again by pressing ENTER.')
                                 continue
                         break
+                print('Finally, optionally specify the maximum number of hits to obtain for each item; by default we will capture them all which can be accomplished by simply pressing ENTER.')
+                while True:
+                        hits_input=input()
+                        if hits_input != '':
+                                try:
+                                        hits_input = int(hits_input)
+                                except:
+                                        print('Unrecognised value provided; this should be an integer. Program will continue using default behaviour.')
+                        else:
+                                hits_input = 99
+                        break
                 print('Alright, sit back and leave your mouse and keyboard alone for a short while.') # End of program start-up
                 # Figure out what server the user is on
                 while True:
@@ -341,7 +352,7 @@ def main():
                         hit_x_coord, hit_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'result_top_left.png'))
                         # Detect the number of hits  
                         hit_screenshot_grayscale = take_screenshot((hit_x_coord+int(SEARCHRESULT_TO_HITS_X_OFFSET / (1920 / monitor.width)), hit_y_coord+int(SEARCHRESULT_TO_HITS_Y_OFFSET / (1080 / monitor.height)), abs(int(HITS_WIDTH / (1920 / monitor.width))), int(HITS_HEIGHT / (1080 / monitor.height))))                
-                        hits = screenshot_number_automatic_capture(hit_screenshot_grayscale, template_directory, 'glow.png')
+                        hits = screenshot_number_automatic_capture(hit_screenshot_grayscale, template_directory, 'glow.png', 0.935)
                         if hits == False:
                                 print('Hit number detection failed... Not sure what to do but continue.')
                                 continue
@@ -350,6 +361,10 @@ def main():
                                 mousePress([int(result_x_coord+int(SEARCHRESULT_TO_CLOSE_X_OFFSET / (1920 / monitor.width))), int(result_y_coord+int(SEARCHRESULT_TO_CLOSE_Y_OFFSET / (1920 / monitor.width)))], 'left', 2, 0.5, 0.5)
                                 continue
                         remaining_hits = hits
+                        # Change hits value if a maximum was enforced
+                        if hits > hits_input:
+                                hits = hits_input
+                                remaining_hits = hits
                         # Chop the current screen into sections for each item
                         for screen_num in range(((hits + 9) // 10)): # This rounds up to nearest 10/10(==1) which will correspond to the number of screens for us to scroll through
                                 for i in range(10):
