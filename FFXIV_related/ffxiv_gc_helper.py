@@ -51,6 +51,7 @@ def xivapi_json_result_identify(json_data, item_name, item_type):
                 json_item_name = url_utf8_encode(item['Name']) # Our item_name is url encoded, so this needs to also be encoded
                 if json_item_name.lower() == item_name.lower() and item['UrlType'].lower() == item_type.lower():
                         best_matches.append(item)
+                        break
                 elif json_item_name.lower() == item_name.lower() and item['UrlType'].lower() != item_type.lower():
                         close_matches.append(item)
                 elif json_item_name.lower() != item_name.lower() and item['UrlType'].lower() == item_type.lower():
