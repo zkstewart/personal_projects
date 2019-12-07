@@ -5,7 +5,7 @@
 # required.
 
 # Import modules
-import pyperclip, pytesseract, cv2, screeninfo, os, ctypes, pyautogui, time, mouse
+import pyperclip, cv2, screeninfo, os, ctypes, pyautogui, time, mouse
 import numpy as np
 from PIL import Image
 from mss import mss
@@ -246,8 +246,7 @@ def main():
         '''It will be ideal to somehow store this in a semi-permanent way within
         the code; need to learn how to do that first!
         '''
-        pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-        template_directory = r'D:\Libraries\Documents\GitHub\personal_projects\FFXIV_related\template_images\mb_price_tabulate'
+        template_directory = r'D:\Zac\Github\personal_projects\FFXIV_related\template_images\mb_price_tabulate'
         # Hard-coded declaration of 1080p template offset values
         ITEM_SEARCH_X_OFFSET = 100
         ITEM_SEARCH_Y_OFFSET = 70
@@ -274,27 +273,17 @@ def main():
         HQ_WIDTH = 40
         # Obtain system-specific values
         monitor = screeninfo.get_monitors()[0] # This is our main monitor's dimensions
+        # Single monitor mode
+        if len(screeninfo.get_monitors()) == 1:
+                single_monitor_mode = True
+                SINGLE_MONITOR_DELAY = 5
+        else:
+                single_monitor_mode = False
         # Program start-up
         print('Welcome to the FFXIV Market Board Price Tabulator!')
         while True:
                 print('Make your way over to a marketboard and bring up the item search box; configure the "partial match" setting as required for your needs.')
-                print('Press ENTER in this dialog box when this has been done.')
-                while True:
-                        button=input()
-                        screenshot_grayscale = take_screenshot()
-                        item_search_x_coord, item_search_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'mb_top_left.png'))
-                        if item_search_x_coord == False:
-                                print('Wasn\'t able to locate the marketboard item search box. Make sure it\'s open on your screen and try again by pressing ENTER.')
-                                continue
-                        break
-                print('Next, copy a list of items into your clipboard and then press ENTER.')
-                while True:
-                        button=input()
-                        text=pyperclip.paste()
-                        if text == '':
-                                print('Nothing was in your clipboard! Copy your text and try again by pressing ENTER.')
-                                continue
-                        break
+                print('Next, copy a list of items into your clipboard.')
                 print('Finally, optionally specify the maximum number of hits to obtain for each item; by default we will capture them all which can be accomplished by simply pressing ENTER.')
                 while True:
                         hits_input=input()
@@ -305,6 +294,22 @@ def main():
                                         print('Unrecognised value provided; this should be an integer. Program will continue using default behaviour.')
                         else:
                                 hits_input = 99
+                        break
+                if single_monitor_mode:
+                        print('Single monitor mode is active; ' + str(SINGLE_MONITOR_DELAY) + ' second delay will be enacted now to allow for alt tabbing.')
+                        time.sleep(SINGLE_MONITOR_DELAY)
+                while True:
+                        screenshot_grayscale = take_screenshot()
+                        item_search_x_coord, item_search_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'mb_top_left.png'))
+                        if item_search_x_coord == False:
+                                print('Wasn\'t able to locate the marketboard item search box. Make sure it\'s open on your screen and try again by pressing ENTER.')
+                                continue
+                        break
+                while True:
+                        text=pyperclip.paste()
+                        if text == '':
+                                print('Nothing was in your clipboard! Copy your text and try again by pressing ENTER.')
+                                continue
                         break
                 print('Alright, sit back and leave your mouse and keyboard alone for a short while.') # End of program start-up
                 # Figure out what server the user is on
