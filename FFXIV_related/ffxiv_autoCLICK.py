@@ -17,7 +17,7 @@ TBD:
 '''
 
 # Import modules
-import pyautogui, pygetwindow, keyboard, mouse, queue, ctypes, screeninfo, time, pickle, tkinter, random
+import pyautogui, pygetwindow, keyboard, mouse, queue, ctypes, screeninfo, time, sys, random
 
 # Hard-coded parameter setup
 pyautogui.PAUSE = 1  # this will enforce a static 1sec wait between each action ## Find better way to handle this later
@@ -400,37 +400,102 @@ def windowHandle():
 def variableTime(time):
         return time + random.random()
 
+def start_key_logger():
+        q = queue.Queue()
+        keyboard.start_recording(q)
+        return q
+
+def stop_key_logger():
+        q = keyboard.stop_recording()
+        return q
+
+def key_logger_specialcommand_queue(q):  # q should be a queue. Queue object from 'keyboard' module
+        specialKeys = ['shift', 'alt', 'ctrl']
+        s = ''
+        ctrldown = False
+        shiftdown = False
+        altdown = False
+        for k in q:  # q contains individual key values ('k') which contain methods from 'keyboard'
+                # Handle special keys and events
+                if k.event_type == 'up':
+                        if k.name == 'ctrl':
+                                ctrldown = False
+                        elif k.name == 'shift':
+                                shiftdown = False
+                        elif k.name == 'alt':
+                                altdown = False
+                        continue
+                elif k.name in specialKeys:
+                        if k.name == 'ctrl':
+                                ctrldown = True
+                        elif k.name == 'shift':
+                                shiftdown = True
+                        elif k.name == 'alt':
+                                altdown = True
+                        continue
+                else:
+                        if ctrldown == True:
+                                s += 'CTRL_' + k.name.lower() + '_'
+                        elif shiftdown == True:
+                                s+= 'SHIFT_' + k.name.lower() + '_'
+                        elif altdown == True:
+                                s+= 'ALT_' + k.name.lower() + '_'
+        return s
+
+def restart_keylogger_for_specialcommand(string):
+        q = stop_key_logger()
+        s = key_logger_specialcommand_queue(q)
+        if string in s:
+                print('Ctrl-Esc command received; program will terminate')
+                sys.exit()
+        else:
+                q = start_key_logger()
+                return q
+
+# Hard-coded definitions for screen locations
+def skillbar4_coordinates():
+        return [[710,780],[755,780],[800,780],[845,780],[890,780],[935,780],[980,780],[1025,780],[1070,780],[1115,780],[1160,780],[1205,780]]
+
+# Hard-coded definitions for specific macros
+def craft(skillbar_coords, wait_times, num_iterations):
+        # Sanity check inputs
+        assert len(skillbar_coords) == len(wait_times)
+        # Run loop
+        for i in range(num_iterations):
+                for x in range(len(skillbar_coords)):
+                        q = start_key_logger()
+                        if x == 0: # Click the synthesise button and give character time to set up
+                                mouseMove(skillbar4_coordinates()[11])
+                                mouseDown('left')
+                                sleepTime=variableTime(0.2)
+                                time.sleep(sleepTime)
+                                mouseUp('left')
+                                sleepTime=variableTime(1.5) 
+                                time.sleep(sleepTime)
+                                q = restart_keylogger_for_specialcommand('CTRL_esc')
+                        # Click macro button and wait
+                        mouseMove(skillbar_coords[x])
+                        mouseDown('left')
+                        sleepTime=variableTime(0.2)
+                        time.sleep(sleepTime)
+                        mouseUp('left')
+                        sleepTime=variableTime(wait_times[x])
+                        time.sleep(sleepTime)
+                        q = restart_keylogger_for_specialcommand('CTRL_esc')
+
 def main():
-        mouseCoordTrack()
-        coord1=[1220, 805]
-        coord2=[1173,803]
-        for i in range(6):
-                # Top-right corner box press 1: synthesize button
-                mouseMove(coord1)
-                mouseDown('left')
-                sleepTime=variableTime(0.2)
-                time.sleep(sleepTime)
-                mouseUp('left')
-                sleepTime=variableTime(1.5) # Wait for character to set up
-                time.sleep(sleepTime)
-                # Second-from-top-right corner box press 2: macro button 1
-                mouseMove(coord2)
-                mouseDown('left')
-                sleepTime=variableTime(0.2)
-                time.sleep(sleepTime)
-                mouseUp('left')
-                # Wait for first macro to complete
-                sleepTime=variableTime(41.5)
-                time.sleep(sleepTime)
-                # Top-right corner box press 3: macro button 2
-                mouseMove(coord1)
-                mouseDown('left')
-                sleepTime=variableTime(0.2)
-                time.sleep(sleepTime)
-                mouseUp('left')
-                # Wait for second macro to complete & synthesize box to pop up again
-                sleepTime=variableTime(18)
-                time.sleep(sleepTime)
+        #mouseCoordTrack()
+        # Single monitor mode
+        if len(screeninfo.get_monitors()) == 1:
+                single_monitor_mode = True
+                SINGLE_MONITOR_DELAY = 10
+        else:
+                single_monitor_mode = False
+        if single_monitor_mode:
+                print('Single monitor mode is active; ' + str(SINGLE_MONITOR_DELAY) + ' second delay will be enacted now to allow for alt tabbing.')
+                time.sleep(SINGLE_MONITOR_DELAY)
+        # Hard-coded macro 1: 40dur 1800p 17.0k nf
+        craft([skillbar4_coordinates()[0]], [41], 10)
 
 if __name__ == '__main__':
         main()
