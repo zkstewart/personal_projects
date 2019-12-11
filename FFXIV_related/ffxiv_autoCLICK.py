@@ -494,8 +494,10 @@ def main():
         if single_monitor_mode:
                 print('Single monitor mode is active; ' + str(SINGLE_MONITOR_DELAY) + ' second delay will be enacted now to allow for alt tabbing.')
                 time.sleep(SINGLE_MONITOR_DELAY)
-        # Hard-coded macro 1: 40dur 1800p 17.0k nf
-        craft([skillbar4_coordinates()[0]], [41], 10)
+        #craft([skillbar4_coordinates()[0]], [41.5], 20) # Hard-coded macro 1: 40dur 1800p 17.0k nf
+        craft([skillbar4_coordinates()[1]], [37], 20) # Hard-coded macro 2: 40dur 1600p 15.0k nf
+        #craft([skillbar4_coordinates()[11]], [11], 15) # Hard-coded macro 3: instacraft
+        
 
 if __name__ == '__main__':
         main()
