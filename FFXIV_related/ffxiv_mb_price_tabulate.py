@@ -276,7 +276,7 @@ def main():
         # Single monitor mode
         if len(screeninfo.get_monitors()) == 1:
                 single_monitor_mode = True
-                SINGLE_MONITOR_DELAY = 5
+                SINGLE_MONITOR_DELAY = 10
         else:
                 single_monitor_mode = False
         # Program start-up
@@ -285,6 +285,7 @@ def main():
                 print('Make your way over to a marketboard and bring up the item search box; configure the "partial match" setting as required for your needs.')
                 print('Next, copy a list of items into your clipboard.')
                 print('Finally, optionally specify the maximum number of hits to obtain for each item; by default we will capture them all which can be accomplished by simply pressing ENTER.')
+                redo_inputs = False
                 while True:
                         hits_input=input()
                         if hits_input != '':
@@ -303,14 +304,17 @@ def main():
                         item_search_x_coord, item_search_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'mb_top_left.png'))
                         if item_search_x_coord == False:
                                 print('Wasn\'t able to locate the marketboard item search box. Make sure it\'s open on your screen and try again by pressing ENTER.')
-                                continue
+                                redo_inputs = True
                         break
                 while True:
                         text=pyperclip.paste()
                         if text == '':
                                 print('Nothing was in your clipboard! Copy your text and try again by pressing ENTER.')
-                                continue
+                                redo_inputs = True
                         break
+                if redo_inputs == True:
+                        print('--RESTART--\n')
+                        continue
                 print('Alright, sit back and leave your mouse and keyboard alone for a short while.') # End of program start-up
                 # Figure out what server the user is on
                 while True:
