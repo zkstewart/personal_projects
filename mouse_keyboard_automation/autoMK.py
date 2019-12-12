@@ -1,27 +1,18 @@
 #! python3
 # autoMK.py
 # Framework for automating mouse and keyboard actions. Windows only.
-'''Functions list:
--Mouse coordinate helper
--Mouse scroll helper
--Mouse click, press, depress, move, drag, scroll
--Keyboard type, 
-TBD:
--Window helper
+# Made by Zachary Stewart; intended as a gift to Jordan Stewart.
 '''
 
-'''Current areas for modification / improvement:
-        1-Add tweening functions to mouse movement [complicates syntax? unnecessary?]
-        2-Add relative dragging
-        3-Multiple point dragging [unnecessary? can be accomplished with mouse down->move->mouse up]
 '''
 
 # Import modules
-import pyautogui, pygetwindow, keyboard, mouse, queue, ctypes, screeninfo, time
+import pyautogui, pygetwindow, keyboard, mouse, queue, ctypes, screeninfo
 
 # Hard-coded parameter setup
-pyautogui.PAUSE = 1  # this will enforce a static 1sec wait between each action ## Find better way to handle this later
-pyautogui.FAILSAFE = True  # during waits, move mouse to top left corner to end
+WHEEL_DELTA = 120 # Taken from boppreh's _winmouse.py code, used as Windows OS default scroll distance
+MOUSEEVENTF_WHEEL = 0x800 # Taken from boppreh's _winmouse.py code
+user32 = ctypes.WinDLL('user32', use_last_error = True) # Taken from boppreh's _winmouse.py code
 
 # Define functions
 ## Keyboard-related functions
@@ -84,7 +75,7 @@ class Mouselogging:
                 self.queue = mouse.record(button = break_click)
                 self.is_logging = False
 
-## General logging-related functions
+## Log-handling functions
 def merge_logs(log_object1, log_object2):
         log_time_pairs = []
         for log in log_object1.queue:
@@ -96,7 +87,7 @@ def merge_logs(log_object1, log_object2):
                 log_time_pairs[i] = log_time_pairs[i][0]
         return log_time_pairs
 
-def shrink_moveevents(log_list): # Function will accept keylog, mouselog, or merged log objects
+def shrink_moveevents(log_list): # Function will accept keylog, mouselog, or merged log queue/list objects
         new_log = []
         previous_event = None
         previous_added_move_event = None
@@ -115,22 +106,52 @@ def shrink_moveevents(log_list): # Function will accept keylog, mouselog, or mer
                         new_log.append(event)
         return new_log
 
-def convert_log_to_functions(log_list):
-        functions_list = []
+def convert_log_to_functions(log_list, unpress_keys=True):
+        functions_list = [] # This list will be filled with strings to use with eval() later
+        currently_pressed = set()
+        last_time = None
+        def derive_wait_time(current_time, last_time):
+                if last_time == None:
+                        return 0, current_time
+                wait_time = current_time - last_time
+                return wait_time, current_time # When returned, the current_time value should be named last_time
         for event in log_list:
                 if type(event) == mouse._mouse_event.MoveEvent:
-                        pass
-                elif type(event) == mouse._mouse_event.ButtonEvent:
-                        pass
+                        functions_list.append('mouse_move([' + str(event.x) + ', ' + str(event.y) + '])')
+                        wait_time, last_time = derive_wait_time(event.time, last_time)
+                        functions_list.append('time.sleep(' + str(wait_time) + ')')
                 elif type(event) == mouse._mouse_event.WheelEvent:
-                        pass
+                        functions_list.append('mouse_scroll(' + str(event.delta) + ')')
+                        wait_time, last_time = derive_wait_time(event.time, last_time)
+                        functions_list.append('time.sleep(' + str(wait_time) + ')')
+                elif type(event) == mouse._mouse_event.ButtonEvent:
+                        if event.event_type == 'up':
+                                functions_list.append('mouse_up("' + event.button + '")')
+                                currently_pressed.discard(event.button)
+                        elif event.event_type == 'down':
+                                functions_list.append('mouse_down("' + event.button + '")')
+                                currently_pressed.add(event.button)
+                        wait_time, last_time = derive_wait_time(event.time, last_time)
+                        functions_list.append('time.sleep(' + str(wait_time) + ')')
                 elif type(event) == keyboard._keyboard_event.KeyboardEvent:
-                        pass
-
-def convert_functions_to_syntax(functions_list):
-        pass
+                        if event.event_type == 'up':
+                                functions_list.append('key_up("' + event.name + '")')
+                                currently_pressed.discard(event.name)
+                        elif event.event_type == 'down':
+                                functions_list.append('key_down("' + event.name + '")')
+                                currently_pressed.add(event.name)
+                        wait_time, last_time = derive_wait_time(event.time, last_time)
+                        functions_list.append('time.sleep(' + str(wait_time) + ')')
+        if unpress_keys == True:
+                for key in currently_pressed:
+                        if key in ['left', 'right', 'middle']:
+                                functions_list.append('mouse_up("' + key + '")')
+                        else:
+                                functions_list.append('key_up("' + key + '")')
+        return functions_list
 
 def convert_syntax_to_functions(syntax_file):
+        # TBD
         pass
 
 def check_log_for_value(log_object, value_name):
@@ -150,7 +171,34 @@ def check_log_for_value(log_object, value_name):
                                         return True
         return False
 
-## PYAUTOGUI-RELATED
+def play_functions_list(functions_list):
+        for function in functions_list:
+                eval(function)
+
+## Mouse controls
+def mouse_move(coord):
+        '''We use ctypes instead of pyautogui since ctypes supports moving the
+        mouse across multiple monitors.'''
+        ctypes.windll.user32.SetCursorPos(coord[0], coord[1])
+
+def mouse_down(button, seconds=0):
+        pyautogui.mouseDown(button=button, pause=seconds)
+
+def mouse_up(button, seconds=0):
+        pyautogui.mouseUp(button=button, pause=seconds)
+
+def mouse_scroll(delta): # Delta should be 1.0 or -1.0
+        code = MOUSEEVENTF_WHEEL
+        user32.mouse_event(code, 0, 0, int(delta * WHEEL_DELTA), 0)
+
+## Keyboard controls
+def key_down(key, seconds=0):
+        pyautogui.keyDown(key, pause=seconds)
+
+def key_up(key, seconds=0):
+        pyautogui.keyUp(key, pause=seconds)
+
+## Validation
 def validate_coord(coord):
         '''This function will ensure that coordinates being provided are accurate
         w/r/t the user's screen setup to ensure that the program operates
@@ -342,100 +390,13 @@ def validate_keyboard(keys, presses=None, interval=None):
                 raise Exception((
                                 'Interval value "{}" is negative.'.format(interval)))
 
-def mouseCoordTrack():
-        # Tell user how to end this function
-        print('Press CTRL+C to stop mouse coordinate tracking function.')
-        print('Press Esc to pause and resume coordinate tracking.')
-        # Enact main loop
-        paused = False
-        while True:
-                try:
-                        q = startKeyLogger()
-                        x, y = pyautogui.position()
-                        if paused == False:
-                                print('X: ' + str(x).rjust(4) + ' Y: ' + str(y).rjust(4), end = '\r')
-                        # Detect space key presses for pausing/resuming tracking function
-                        q = stopKeyLogger()
-                        s = keyLoggerToString(q, False)
-                        if '_ESC_' in s:
-                                if paused == False:
-                                        paused = True
-                                else:
-                                        paused = False
-                except KeyboardInterrupt:
-                        print('')
-                        print('Mouse coordinate tracking stop.')
-                        break
-                except:
-                        print('')
-                        print('Unknown error; mouse coordinate tracking will resume.')
-
-def mouseScrollTrack():
-        '''Function should enable the user to test the amount of scroll units
-        they want to perform in a way that is relatively easy to figure out.'''
-        # Tell user how to end this function
-        print('Press CTRL+C to stop mouse scroll testing function.')
-        print('Press Esc to perform a mouse scroll at the provided amount of units.')
-        print('Press Down arrow to type in a new amount of units for testing.')
-        print('Positive numbers scroll up, negative numbers scroll down.')
-        # Enact main loop
-        paused = False
-        units = None
-        while True:
-                try:
-                        if units == None or paused == True:
-                                print('Type the amount of units to scroll below.')
-                                while True:
-                                        units = input()
-                                        try:
-                                                units = int(units)
-                                                paused = False
-                                                print('Scroll units: {}'.format(units))
-                                                break
-                                        except:
-                                                print('Provided value is not int, try again.')
-                        # Detect key presses for pausing/resuming/exiting
-                        q = startKeyLogger()
-                        time.sleep(0.5)
-                        q = stopKeyLogger()
-                        s = keyLoggerToString(q, False)
-                        if '_ESC_' in s:
-                                pyautogui.scroll(units)
-                        elif '_DOWN_' in s:
-                                paused = True
-                except KeyboardInterrupt:
-                        print('')
-                        print('Scroll unit testing stop.')
-                        break
-                except:
-                        print('')
-                        print('Unknown error; scroll unit testing will resume.')
-
-def mouse_move(coord):
-        '''We use ctypes instead of pyautogui since ctypes supports moving the
-        mouse across multiple monitors.'''
-        ctypes.windll.user32.SetCursorPos(coord[0], coord[1])
-
-def mouse_down(button):
-        pyautogui.mouseDown(button=button)
-
-def mouse_up(button):
-        pyautogui.mouseUp(button=button)
-
-def mouse_scroll(units, direction):
-        units = validate_scroll(units, direction)
-        pyautogui.scroll(units)
-
-def windowHandle():
-        asdf
-
 def main():
-        print('ayy lmao')
         '''TBD;
-        1) Produce a menu screen that allows the user to call specific functions
-        2) Produce a config file syntax that allows users to provide simple instructions for mouse/keyboard automation that can be decoded appropriately
-        +3) Produce a pyautogui function that can automate all kinds of mouse and keyboard actions
-        4) Helper function to print currently available windows
+        0) Add failsafe mechanism to cancel program operation (e.g., press left ctrl + right ctrl)
+        1) Produce a menu screen that allows the user to call specific functions and set global values e.g., speed-up factors
+        2) Produce a config file syntax that allows users to provide simple instructions for mouse/keyboard automation that can be reconstituted appropriately
+        3) Re-add coord tracking function to allow the user to make manual adjustments to the config file more simply
+        4) Add extra functionality into the config file approach such as string strip/concatenation for values copied into clipboard?
         '''
         #mouseCoordTrack()
         #mouseScrollTrack()
@@ -451,6 +412,10 @@ def main():
         #
         c = merge_logs(a, b)
         d = shrink_moveevents(c)
+        e = convert_log_to_functions(d)
+        play_functions_list(e)
+                
 
 if __name__ == '__main__':
-        main()
+        #main()
+        pass
