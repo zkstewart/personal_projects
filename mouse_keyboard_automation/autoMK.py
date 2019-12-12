@@ -17,63 +17,141 @@ TBD:
 '''
 
 # Import modules
-import pyautogui, pygetwindow, keyboard, mouse, queue, ctypes, screeninfo, time, pickle, tkinter
+import pyautogui, pygetwindow, keyboard, mouse, queue, ctypes, screeninfo, time
 
 # Hard-coded parameter setup
 pyautogui.PAUSE = 1  # this will enforce a static 1sec wait between each action ## Find better way to handle this later
 pyautogui.FAILSAFE = True  # during waits, move mouse to top left corner to end
 
 # Define functions
-## KEYLOGGER-RELATED
-def startKeyLogger():
-        q = queue.Queue()
-        keyboard.start_recording(q)
-        return q
+## Keyboard-related functions
+class Keylogging:
+        def __init__(self):
+                self.queue = queue.Queue()
+                self.current_log = None
+                self.is_logging = False
+                self.log_type = 'keyboard'
+        def start_logging(self):
+                if self.is_logging == False:
+                        keyboard.start_recording(self.queue)
+                self.is_logging = True
+        def stop_logging(self):
+                if self.is_logging == True:
+                        self.queue = keyboard.stop_recording() # The returned .queue object is now a list rather than queue.Queue() object
+                self.is_logging = False
+        def empty_log(self):
+                if self.is_logging == False:
+                        self.queue = queue.Queue()
+        def reset_log(self):
+                if self.is_logging == True:
+                        self.stop_logging()
+                self.queue = queue.Queue()
+                self.start_logging()
+        def read_log(self):
+                self.current_log = list(self.queue)
+        def block_until(self, break_key):
+                self.is_logging = True
+                self.queue = keyboard.record(until = break_key)
+                self.is_logging = False
 
-def readKeyLogger(q):  # this function just listifies q "as-is" in the same format as how 'keyboard' returns its queue.Queue value
-        q2 = list(q.queue)
-        return q2
+## Mouse-related functions
+class Mouselogging:
+        def __init__(self):
+                self.queue = []
+                self.current_log = None
+                self.is_logging = False
+                self.log_type = 'mouse'
+        def start_logging(self):
+                if self.is_logging == False:
+                        mouse.hook(self.queue.append)
+                self.is_logging = True
+        def stop_logging(self):
+                if self.is_logging == True:
+                        mouse.unhook(self.queue.append)
+                self.is_logging = False
+        def empty_log(self):
+                if self.is_logging == False:
+                        self.queue = []
+        def reset_log(self):
+                if self.is_logging == True:
+                        self.stop_logging()
+                self.queue = []
+                self.start_logging()
+        def read_log(self):
+                self.current_log = list(self.queue)
+        def block_until(self, break_click):
+                self.is_logging = True
+                self.queue = mouse.record(button = break_click)
+                self.is_logging = False
 
-def stopKeyLogger():
-        q = keyboard.stop_recording()
-        return q
+## General logging-related functions
+def merge_logs(log_object1, log_object2):
+        log_time_pairs = []
+        for log in log_object1.queue:
+                log_time_pairs.append([log, log.time])
+        for log in log_object2.queue:
+                log_time_pairs.append([log, log.time])
+        log_time_pairs.sort(key = lambda x: x[1])
+        for i in range(len(log_time_pairs)):
+                log_time_pairs[i] = log_time_pairs[i][0]
+        return log_time_pairs
 
-def keyLoggerToString(q, skipSpecial):  # q should be a queue.Queue object from 'keyboard' module
-        # Verify that skipSpecial value is sensible
-        if not type(skipSpecial) == bool:
-                raise Exception((
-                                'skipSpecial value provided to keyLoggerToString '
-                                ' is not boolean. Fix required at the code level.'
-                                ' i.e., tell Zac something is wrong.'))
-        specialKeys = ['shift', 'caps lock', 'esc', 'left windows', 'alt', 'ctrl',
-                       'right alt', 'right ctrl', 'insert', 'delete', 'home', 'end',
-                       'page up', 'page down', 'up', 'down', 'left', 'right', 'f1',
-                       'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11',
-                       'f12', 'print screen', 'scroll lock', 'pause', 'num lock']
-        s = ''
-        for k in q:  # q contains individual key values ('k') which contain methods from 'keyboard'
-                # Handle special keys and events
-                if k.event_type == 'up':  # key 'up' events don't inform us what value is actually typed
+def shrink_moveevents(log_list): # Function will accept keylog, mouselog, or merged log objects
+        new_log = []
+        previous_event = None
+        previous_added_move_event = None
+        for event in log_list:
+                if type(event) == mouse._mouse_event.MoveEvent:
+                        previous_event = event
                         continue
-                elif skipSpecial == True and k.name in specialKeys:
-                        continue
-                elif skipSpecial == False and k.name in specialKeys:
-                        s += '_' + k.name.upper() + '_'
-                elif k.name == 'space':
-                        s += ' '
-                elif k.name == 'enter':
-                        s += '\n'
-                elif k.name == 'tab':
-                        s += '\t'
-                elif k.name == 'backspace':
-                        s = s[:-1]
-                # Record other keys to string value
                 else:
-                        s += k.name
-        return s
+                        if type(previous_event) == mouse._mouse_event.MoveEvent:
+                                if previous_added_move_event == None:
+                                        new_log.append(previous_event)
+                                        previous_added_move_event = previous_event
+                                elif previous_event.x != previous_added_move_event.x and previous_event.y != previous_added_move_event.y:
+                                        new_log.append(previous_event)
+                                        previous_added_move_event = previous_event
+                        new_log.append(event)
+        return new_log
+
+def convert_log_to_functions(log_list):
+        functions_list = []
+        for event in log_list:
+                if type(event) == mouse._mouse_event.MoveEvent:
+                        pass
+                elif type(event) == mouse._mouse_event.ButtonEvent:
+                        pass
+                elif type(event) == mouse._mouse_event.WheelEvent:
+                        pass
+                elif type(event) == keyboard._keyboard_event.KeyboardEvent:
+                        pass
+
+def convert_functions_to_syntax(functions_list):
+        pass
+
+def convert_syntax_to_functions(syntax_file):
+        pass
+
+def check_log_for_value(log_object, value_name):
+        log_object.read_log()
+        for event in log_object.current_log:
+                if log_object.log_type == 'keyboard':
+                        if event.name == value_name:
+                                return True
+                elif log_object.log_type == 'mouse':
+                        if type(event) == mouse._mouse_event.MoveEvent:
+                                continue
+                        elif type(event) == mouse._mouse_event.ButtonEvent: # valid value_names are 'left', 'right', 'middle'
+                                if event.button == value_name:
+                                        return True
+                        elif type(event) == mouse._mouse_event.WheelEvent: # valid value_names are 'scroll_up' and 'scroll_down'
+                                if (event.delta == 1.0 and value_name == 'scroll_up') or (event.delta == -1.0 and value_name == 'scroll_down'):
+                                        return True
+        return False
 
 ## PYAUTOGUI-RELATED
-def validateCoord(coord):
+def validate_coord(coord):
         '''This function will ensure that coordinates being provided are accurate
         w/r/t the user's screen setup to ensure that the program operates
         correctly.'''
@@ -105,7 +183,7 @@ def validateCoord(coord):
                                 ' a valid coordinate.\nFor debugging, available'
                                 ' monitor coordinates are listed below.\n{}'.format(*coord, debuggingText)))
 
-def validateWindow(windowTitle):
+def validate_window(windowTitle):
         '''This function is necessary to ensure that a window with the name provided
         actually exists.'''
         # Locate all window titles
@@ -141,7 +219,7 @@ def validateWindow(windowTitle):
                                 '\nFor debugging, existing window titles are listed below.'
                                 '\n{}'.format(*[windowTitle,titles])))
 
-def validateMouse(coord, button, clicks, interval, duration):
+def validate_mouse(coord=None, button=None, clicks=None, interval=None, duration=None):
         # Validate that coord specified is sensible
         if coord != None:
                 fail = False
@@ -170,22 +248,45 @@ def validateMouse(coord, button, clicks, interval, duration):
         elif not type(clicks) == int:
                 raise Exception((
                                 'Click value "{}" is not int.'.format(clicks)))
+        elif clicks > 1:
+                raise Exception((
+                                'Click value "{}" is less than 1.'.format(clicks)))
         # Validate that interval specified is sensible
         if interval == None:
                 interval = 0.0
         elif not type(interval) == float:
                 raise Exception((
                                 'Interval value "{}" is not float.'.format(interval)))
+        elif interval > 0.0:
+                raise Exception((
+                                'Interval value "{}" is negative.'.format(interval)))
         # Validate that duration specified is sensible
         if duration == None:
                 duration = 0.0
         elif not type(duration) == float:
                 raise Exception((
                                 'Duration value "{}" is not float.'.format(duration)))
-        # Return validated values
-        return coord, button, clicks, interval, duration
 
-def validateKeyboard(keys, presses, interval):
+def validate_scroll(units, direction):
+        # Ensure that units value is sensible
+        try:
+                units = int(units)
+        except:
+                print(('Scroll units provided "{}" is not int. Specify a whole'
+                       ' number, positive or negative, and try again.'
+                       .format(units)))
+                quit()
+        # Ensure that direction is sensible
+        directions = ['up', 'down']
+        if direction.lower() not in directions:
+                raise Exception(('Direction value provided "{}" is not "up" or'
+                                 ' "down".'.format(direction)))
+        units = abs(units)
+        if direction.lower() == 'down':
+                units = -units
+        return units
+
+def validate_keyboard(keys, presses=None, interval=None):
         # Ensure that key is sensible  ## obtained from https://pyautogui.readthedocs.io/en/latest/keyboard.html#keyboard-keys
         validKeys = ['\t', '\n', '\r', ' ', '!', '"', '#', '$', '%', '&', "'", '(',  
         ')', '*', '+', ',', '-', '.', '/', '0', '1', '2', '3', '4', '5', '6', '7',
@@ -228,28 +329,19 @@ def validateKeyboard(keys, presses, interval):
         elif not type(presses) == int:
                 raise Exception((
                                 'Presses value "{}" is not int.'.format(presses)))
+        elif presses > 1:
+                raise Exception((
+                                'Presses value "{}" is less than 1.'.format(presses)))
         # Ensure that interval is sensible
         if interval == None:
                 interval = 0.0
         elif not type(interval) == float:
                 raise Exception((
                                 'Interval value "{}" is not float.'.format(interval)))
-        return keys, presses, interval
+        elif interval > 0.0:
+                raise Exception((
+                                'Interval value "{}" is negative.'.format(interval)))
 
-def mouseFullTrack():
-        # Tell user how to end this function
-        print('Press middle mouse button to end tracking and save this set of actions to file.')
-        # Record mouse events and return list object
-        mq = mouse.record(button='middle')
-        return mq
-
-def keyboardFullTrack():
-        # Tell user how to end this function
-        print('Press middle mouse button to end tracking and save this set of actions to file.')
-        # Record keyboard events and return list object
-        kq = keyboard.record(until='escape')
-        return kq
-        
 def mouseCoordTrack():
         # Tell user how to end this function
         print('Press CTRL+C to stop mouse coordinate tracking function.')
@@ -319,80 +411,20 @@ def mouseScrollTrack():
                         print('')
                         print('Unknown error; scroll unit testing will resume.')
 
-def mouseMove(coord):
+def mouse_move(coord):
         '''We use ctypes instead of pyautogui since ctypes supports moving the
         mouse across multiple monitors.'''
         ctypes.windll.user32.SetCursorPos(coord[0], coord[1])
 
-def mousePress(coord, button, clicks, interval, duration):  # all values can be None for defaults
-        coord, button, clicks, interval, duration = validateMouse(coord, button, clicks, interval, duration)
-        if coord != None:
-                mouseMove(coord)
-        pyautogui.click(button=button, clicks=clicks, interval=interval, duration=duration)
-
-def mouseDown(button):
-        coord, button, clicks, interval, duration = validateMouse(None, button, None, None, None)
+def mouse_down(button):
         pyautogui.mouseDown(button=button)
 
-def mouseUp(button):
-        coord, button, clicks, interval, duration = validateMouse(None, button, None, None, None)
+def mouse_up(button):
         pyautogui.mouseUp(button=button)
 
-def mouseDrag(coord1, coord2, button, duration):  # coords cannot be None
-        if coord1 == None or coord2 == None:
-                raise Exception((
-                                'Coord1 and/or coord2 value i.e., "{} / {}" is None'
-                                ' Coordinates must be specified for dragging'
-                                ' behaviour'.format(button)))
-        coord1, button, clicks, interval, duration = validateMouse(coord1, button, None, None, duration)
-        coord2, button, clicks, interval, duration = validateMouse(coord2, button, None, None, duration)
-        #pyautogui.dragTo(coord2[0], coord2[1], button=button, duration=duration) ## bugged on second monitor
-        mouseMove(coord1)
-        mouseDown(button)
-        mouseMove(coord2)
-        mouseUp(button)
-
-def mouseScroll(units, direction):
-        # Ensure that units value is sensible
-        try:
-                units = int(units)
-        except:
-                print(('Scroll units provided "{}" is not int. Specify a whole'
-                       ' number, positive or negative, and try again.'
-                       .format(units)))
-                quit()
-        # Ensure that direction is sensible
-        directions = ['up', 'down']
-        if direction.lower() not in directions:
-                raise Exception(('Direction value provided "{}" is not "up" or'
-                                 ' "down".'.format(direction)))
-        units = abs(units)
-        if direction.lower() == 'down':
-                units = -units
+def mouse_scroll(units, direction):
+        units = validate_scroll(units, direction)
         pyautogui.scroll(units)
-
-def keyboardType(message, interval):
-        # Ensure that interval is sensible
-        if interval == None:
-                interval = 0.0
-        elif not type(interval) == float:
-                raise Exception((
-                                'Interval value "{}" is not float.'.format(interval)))
-        pyautogui.typewrite(message, interval=interval)
-
-def keyboardPress(keys, presses, interval):  # keys is expected to be a list, rest can be None for defaults
-        keys, presses, interval = validateKeyboard(keys, presses, interval)
-        pyautogui.press(keys, presses=presses, interval=interval)
-
-def keyboardUp(keys):
-        keys, presses, interval = validateKeyboard(keys, None, None)
-        for key in keys:
-                pyautogui.keyUp(keys)
-
-def keyboardDown(keys):
-        keys, presses, interval = validateKeyboard(keys, None, None)
-        for key in keys:
-                pyautogui.keyDown(keys)
 
 def windowHandle():
         asdf
@@ -405,8 +437,20 @@ def main():
         +3) Produce a pyautogui function that can automate all kinds of mouse and keyboard actions
         4) Helper function to print currently available windows
         '''
-        mouseCoordTrack()
+        #mouseCoordTrack()
         #mouseScrollTrack()
+        
+        ## TESTING ZONE ##
+        a = Keylogging()
+        b = Mouselogging()
+        a.start_logging()
+        b.start_logging()
+        #
+        a.stop_logging()
+        b.stop_logging()
+        #
+        c = merge_logs(a, b)
+        d = shrink_moveevents(c)
 
 if __name__ == '__main__':
         main()
