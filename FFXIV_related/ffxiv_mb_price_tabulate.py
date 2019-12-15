@@ -94,6 +94,103 @@ def screenshot_server_automatic_capture(screenshot_grayscale, template_directory
                         return KNOWN_SERVERS[x-1] # Need to do this since our files start at 1, but list is indexed starting at 0
         return False
 
+def wait_for_slow_response(template_file, threshold=0.95): # This function became necessary when running the program on a slow laptop
+        while True:
+                screenshot_grayscale = take_screenshot()
+                x_coord, y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, template_file)
+                if x_coord != False:
+                        time.sleep(0.5)
+                        continue
+                break
+
+def find_correct_item_from_mb(item_name, item_search_x_coord, item_search_y_coord, template_directory, file_suffix):
+        def test_for_misalignment(monitor, item_search_x_coord, item_search_y_coord, ALPHABET, ITEM_NAMES_X_OFFSET, ITEM_NAMES_Y_OFFSET, ITEM_NAMES_Y_OFFSET_MISALIGNED, NAME_WIDTH, NAME_HEIGHT):
+                capitals = []
+                itemname_screenshot_grayscale = take_screenshot((item_search_x_coord+int(ITEM_NAMES_X_OFFSET / (1920 / monitor.width)), item_search_y_coord+int(ITEM_NAMES_Y_OFFSET / (1080 / monitor.height))+int((abs(int(NAME_HEIGHT / (1080 / monitor.height))))*i), abs(int(NAME_WIDTH / (1920 / monitor.width))), int(int(NAME_HEIGHT / (1080 / monitor.height)))))
+                for letter in ALPHABET:
+                        x_coord, y_coord = screenshot_template_match_multiple(itemname_screenshot_grayscale, os.path.join(template_directory, letter + file_suffix))
+                        if x_coord != False:
+                                for occurrence in x_coord:
+                                        capitals.append(letter)
+                if capitals == []:
+                        return True
+                else:
+                        return False
+        # Hard-coded values
+        ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        ITEM_NAMES_X_OFFSET = 345
+        ITEM_NAMES_Y_OFFSET = 65
+        ITEM_NAMES_Y_OFFSET_MISALIGNED = 85 # On the last screen if we scroll, it will always be a bit "misaligned"
+        NAME_WIDTH = 345
+        NAME_HEIGHT = 30
+        ITEMS_PER_SCREEN = 16 # At 1080p XIV presents 16 items in a screen before scrolling becomes necessary to view more
+        monitor = screeninfo.get_monitors()[0] # This is our main monitor's dimensions
+        # Analyse item_name to figure out its capitals and presence of "of"
+        words = item_name.split(' ')
+        target_capitals = []
+        for word in words:
+                if word == 'of':
+                        target_capitals.append(word)
+                else:
+                        target_capitals.append(word[0].upper())
+        # Main loop
+        matched_index = None
+        end_of_items = False
+        while True:
+                # Scan through items and derive the number of capital letters and presence/absence of "of"
+                for i in range(ITEMS_PER_SCREEN):
+                        capitals = []
+                        # Test for misalignment caused by being at the bottom of a scrolled item list
+                        if i == 0:
+                                misaligned = test_for_misalignment(monitor, item_search_x_coord, item_search_y_coord, ALPHABET, ITEM_NAMES_X_OFFSET, ITEM_NAMES_Y_OFFSET, ITEM_NAMES_Y_OFFSET_MISALIGNED, NAME_WIDTH, NAME_HEIGHT)
+                        # Screenshot the correct portion of the screen dependent on whether misalignment is present
+                        if misaligned == False:
+                                itemname_screenshot_grayscale = take_screenshot((item_search_x_coord+int(ITEM_NAMES_X_OFFSET / (1920 / monitor.width)), item_search_y_coord+int(ITEM_NAMES_Y_OFFSET / (1080 / monitor.height))+int((abs(int(NAME_HEIGHT / (1080 / monitor.height))))*i), abs(int(NAME_WIDTH / (1920 / monitor.width))), int(int(NAME_HEIGHT / (1080 / monitor.height)))))
+                        else:
+                                itemname_screenshot_grayscale = take_screenshot((item_search_x_coord+int(ITEM_NAMES_X_OFFSET / (1920 / monitor.width)), item_search_y_coord+int(ITEM_NAMES_Y_OFFSET_MISALIGNED / (1080 / monitor.height))+int((abs(int(NAME_HEIGHT / (1080 / monitor.height))))*i), abs(int(NAME_WIDTH / (1920 / monitor.width))), int(int(NAME_HEIGHT / (1080 / monitor.height)))))
+                        # Template match for capital letters
+                        for letter in ALPHABET:
+                                x_coord, y_coord = screenshot_template_match_multiple(itemname_screenshot_grayscale, os.path.join(template_directory, letter + file_suffix))
+                                if x_coord != False:
+                                        for occurrence in x_coord:
+                                                capitals.append(letter)
+                        # Template match for 'of' text
+                        x_coord, y_coord = screenshot_template_match_multiple(itemname_screenshot_grayscale, os.path.join(template_directory, 'of' + file_suffix))
+                        if x_coord != False:
+                                for occurrence in x_coord:
+                                        capitals.append('of')
+                        # Assess whether we've hit our target name
+                        if capitals == []:
+                                end_of_items = True
+                                break # We've run out of items to consider
+                        nontarget_match = False
+                        if len(capitals) != len(target_capitals):
+                                nontarget_match = True
+                        else:
+                                for capital in capitals:
+                                        if capitals.count(capital) != target_capitals.count(capital):
+                                                nontarget_match = True
+                                                break
+                        if nontarget_match == False:
+                                matched_index = i
+                                break
+                # Exit condition
+                if matched_index != None or end_of_items == True:
+                        break
+                # We've checked all items on the screen and failed to trigger the exit condition; scroll down the item list
+                mouseMove([0, 0]) # Get the mouse out of the way for screenshotting
+                pre_scroll_screenshot = take_screenshot()
+                mouseMove([int(item_search_x_coord+int(ITEM_NAMES_X_OFFSET / (1920 / monitor.width))), int(item_search_y_coord+int(ITEM_NAMES_Y_OFFSET / (1080 / monitor.height)))]) # Move the mouse into the item section to input scrolls
+                for x in range(ITEMS_PER_SCREEN):
+                        mouseScroll(1, 'down')
+                        time.sleep(0.1)
+                mouseMove([0, 0])
+                post_scroll_screenshot = take_screenshot()     
+                if not np.isin(False, pre_scroll_screenshot == post_scroll_screenshot):
+                        end_of_items = True
+                        break
+        return matched_index
+
 ## Mouse and keyboard automation functions
 def mouseMove(coord):
         '''We use ctypes instead of pyautogui since ctypes supports moving the
@@ -246,7 +343,7 @@ def main():
         '''It will be ideal to somehow store this in a semi-permanent way within
         the code; need to learn how to do that first!
         '''
-        template_directory = r'D:\Zac\Github\personal_projects\FFXIV_related\template_images\mb_price_tabulate'
+        template_directory = r'C:\Bioinformatics\GitHub\personal_projects\FFXIV_related\template_images\mb_price_tabulate'
         # Hard-coded declaration of 1080p template offset values
         ITEM_SEARCH_X_OFFSET = 100
         ITEM_SEARCH_Y_OFFSET = 70
@@ -271,6 +368,7 @@ def main():
         PRICE_WIDTH = 88
         QTY_WIDTH = 57
         HQ_WIDTH = 40
+        NAME_HEIGHT = 30
         # Obtain system-specific values
         monitor = screeninfo.get_monitors()[0] # This is our main monitor's dimensions
         # Single monitor mode
@@ -338,17 +436,28 @@ def main():
                         time.sleep(0.5) # Can be necessary for long names if stuff lags
                         keyboardPressSequential(['enter'], None, None)
                         time.sleep(1)
-                        # Figure out if we have no or multiple results; either is problematic
+                        # Figure out if we have no results
+                        wait_for_slow_response(os.path.join(template_directory, 'still_loading_blank.png'))
                         match_screenshot_grayscale = take_screenshot()
                         match_x_coord, match_y_coord = screenshot_template_match_topleftcoords(match_screenshot_grayscale, os.path.join(template_directory, 'nomatch.png'))
                         if match_x_coord != False:
                                 print('There is no match for "' + item + '"... fix your inputs; program will ignore and continue.')
                                 continue
+                        # If we have multiple results, find the correct one
+                        match_x_coord, match_y_coord = screenshot_template_match_topleftcoords(match_screenshot_grayscale, os.path.join(template_directory, '1matchonly_blank.png'))
+                        if match_x_coord == False:
+                                item_index = find_correct_item_from_mb(item, item_search_x_coord, item_search_y_coord, template_directory, '.png')
+                                if item_index == None:
+                                        print('Could not locate "' + item + '" for some reason... program will ignore and continue.')
+                                        continue
+                        else:
+                                item_index = 0
                         # Click item
                         while True:
-                                mousePress([int(item_search_x_coord+int(ITEM_CLICK_X_OFFSET / (1920 / monitor.width))), int(item_search_y_coord+int(ITEM_CLICK_Y_OFFSET / (1920 / monitor.width)))], 'left', 2, 0.5, 0.5)
+                                mousePress([int(item_search_x_coord+int(ITEM_CLICK_X_OFFSET / (1920 / monitor.width))), int(item_search_y_coord+int(ITEM_CLICK_Y_OFFSET / (1920 / monitor.width))+int((abs(int(NAME_HEIGHT / (1080 / monitor.height))))*item_index))], 'left', 2, 0.5, 0.5) ## TESTING
                                 time.sleep(1)
                                 # Detect "Please wait and try..." statements
+                                wait_for_slow_response(os.path.join(template_directory, 'item_search_loading_blank.png'))
                                 screenshot_grayscale = take_screenshot()
                                 result_x_coord, result_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'result_top_left.png'))
                                 wait_x_coord, wait_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'please_wait.png'))
