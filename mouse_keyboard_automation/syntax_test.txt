@@ -1,0 +1,23 @@
+key press win
+wait3
+key type paint.net
+wait1
+key press enter
+wait5
+mouse click_left x39y461
+mouse click_left x158y112
+mouse click_left x202y165
+mouse move x708y403 duration2
+mouse drag x708y403 to x803y495 duration1
+mouse move x908y403 duration2
+mouse drag x908y403 to x1003y495 duration1
+mouse click_left x19y369
+mouse move x650y600 duration0.5
+mouse drag x650y600 to x690y630 duration0.1
+mouse drag x690y630 to x740y660 duration0.1
+mouse drag x740y660 to x790y690 duration0.1
+mouse drag x790y690 to x840y720 duration0.1
+mouse drag x840y720 to x890y690 duration0.1
+mouse drag x890y690 to x940y660 duration0.1
+mouse drag x940y660 to x990y630 duration0.1
+mouse drag x990y630 to x1040y600 duration0.1

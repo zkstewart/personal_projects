@@ -7,7 +7,7 @@
 '''
 
 # Import modules
-import pyautogui, pygetwindow, keyboard, mouse, queue, ctypes, screeninfo, time
+import pyautogui, pygetwindow, keyboard, mouse, queue, ctypes, screeninfo, time, re
 
 # Hard-coded parameter setup
 WHEEL_DELTA = 120 # Taken from boppreh's _winmouse.py code, used as Windows OS default scroll distance
@@ -150,80 +150,255 @@ def convert_log_to_functions(log_list, unpress_keys=True):
                                 functions_list.append('key_up("' + key + '")')
         return functions_list
 
-def shrink_typing_functions(functions_list):
-        def derive_function_type(function):
-                if function.startswith('mouse'):
-                        return 'mouse'
-                elif function.startswith('time'):
-                        return 'time'
-                elif function.startswith('key'):
-                        return 'key'
-        # Setup
-        new_functions_list = []
-        previous_function = None
-        previous_function_type = None
-        ctrlkey_pressed = False
-        shiftkey_pressed = False
-        altkey_pressed = False
-        # Main function loop
-        for function in functions_list:
-                function_type = derive_function_type(function)
-                # Handle hotkey presses
-                if function_type == 'key':
-                        key_pressed, key_direction = function.split('"')[1], function.split('(')[0].split('_')[1]
-                        if (key_pressed == 'ctrl' or key_pressed == 'shift' or key_pressed == 'alt') and key_direction == 'down':
-                                if key_pressed == 'ctrl':
-                                        ctrlkey_pressed = True
-                                elif key_pressed == 'shift':
-                                        shiftkey_pressed = True
-                                elif key_pressed == 'alt':
-                                        altkey_pressed = True
-                        elif (key_pressed == 'ctrl' or key_pressed == 'shift' or key_pressed == 'alt') and key_direction == 'up':
-                                if key_pressed == 'ctrl':
-                                        ctrlkey_pressed = False
-                                elif key_pressed == 'shift':
-                                        shiftkey_pressed = False
-                                elif key_pressed == 'alt':
-                                        altkey_pressed = False
-                # Handle new key chains
-                if previous_function_type != 'key' and function_type == 'key':
-                        key_pressed, key_direction = function.split('"')[1], function.split('(')[0].split('_')[1]
-                        # Handle hotkeys
-                        if (key_pressed == 'ctrl' or key_pressed == 'shift' or key_pressed == 'alt') and key_direction == 'down':
-                                hotkey_pressed = key_pressed
-                                process_key_chain(hotkey_chain) #TBD
-                                hotkey_chain = [function]
-                                sleep_chain = []
-                        # Handle normal keys
-                        elif key_direction == 'down':
-                                process_key_chain(hotkey_chain) #TBD
-                                typing_chain = [function]
-                                sleep_chain = []
-                # Handle stops inbetween a key chain
-                elif previous_function_type == 'key' and function_type == 'time':
-                        sleep_chain.append(function) # This is mostly ignored e.g., we don't count it as a previous_function
-                # Handle key chain continuation
-                elif previous_function_type == 'key' and function_type == 'time':
-                        key_pressed, key_direction = function.split('"')[1], function.split('(')[0].split('_')[1]
-                        # Handle hotkeys
-                        if (key_pressed == 'ctrl' or key_pressed == 'shift' or key_pressed == 'alt') and key_direction == 'down':
-                                hotkey_chain.append(function)
-                        # Handle normal keys
-                        elif key_direction == 'down':
-                                typing_chain.append(function)
-                
-                
-                if function.startswith('mouse'):
-                        new_functions_list.append(function)
-                
-                previous_function = function
-                previous_function_type = function_type
-                
-        pass
+def valid_commands():
+        main_commands = ['mouse', 'key', 'wait']
+        second_commands = {'mouse': ['click_left', 'click_right', 'scroll_down',
+                                     'scroll_up', 'drag', 'move'],
+                          'key': ['press', 'type']}
+        return main_commands, second_commands
+
+def validate_syntax(syntax_file):
+        coord_format = re.compile(r'x\d{1,5}y\d{1,5}')
+        duration_format = re.compile(r'duration\d{1,10}(\.\d{1,10})?$')
+        with open(syntax_file, 'r') as file_in:
+                for line in file_in: # File is parsed line-by-line, with each line being a function
+                        if line.startswith('#'): # This allows lines to be commented out for testing purposes; very helpful!
+                                   continue
+                        sl = line.lower().rstrip('\r\n').split(' ')
+                        # Validate minimum line length is met to prevent errors when calling sl by index later
+                        if (sl[0] == 'mouse' or sl[0] == 'key') and len(sl) < 3:
+                                print('Syntax file has incomplete command "' + ' '.join(sl) + '"')
+                                print('Make sure your file complies with syntax requirements and try again.')
+                                quit()
+                        # Validate first component of line
+                        if not (sl[0] == 'mouse' or sl[0] == 'key' or sl[0].startswith('wait')):
+                                print('Syntax file has unrecognised command "' + sl[0] + '"')
+                                print('Make sure your file complies with syntax requirements and try again.')
+                                quit()
+                        # Validate waits
+                        if sl[0].startswith('wait'):
+                                try:
+                                        float(sl[0][4:])
+                                except:
+                                        print('Wait command has unrecognised integer or foat "' + sl[0] + '"')
+                                        print('Make sure your file complies with syntax requirements and try again.')
+                                        quit()
+                        # Validate second component of line
+                        if sl[0] == 'mouse' and sl[1] not in valid_commands()[1]['mouse']:
+                                print('Syntax file has unrecognised command "' + sl[1] + '" after "mouse"')
+                                print('Make sure your file complies with syntax requirements and try again.')
+                                quit()
+                        elif sl[0] == 'key' and sl[1] not in valid_commands()[1]['key']:
+                                print('Syntax file has unrecognised command "' + sl[1] + '" after "key"')
+                                print('Make sure your file complies with syntax requirements and try again.')
+                                quit()
+                        # Validate third component of line
+                        if sl[0] == 'mouse' and sl[1] in ['click_left', 'click_right', 'move']:
+                                if not coord_format.match(sl[2]):
+                                        print('Syntax file has unrecognised coordinate "' + sl[2] + '" after "' + sl[1] + '"')
+                                        print('Make sure your file complies with syntax requirements and try again.')
+                                        quit()
+                                else:
+                                        x_coord, y_coord = list(map(int, sl[2].replace('x','').split('y')))
+                                        validate_coord(x_coord, y_coord)
+                        elif sl[0] == 'mouse' and sl[1] in ['drag']:
+                                if not coord_format.match(sl[2]) or not coord_format.match(sl[4]) or not sl[3] == 'to':
+                                        print('Syntax file has unrecognised coordinate "' + ' '.join(sl[2:5]) + '" after "' + sl[1] + '"')
+                                        print('Make sure your file complies with syntax requirements and try again.')
+                                        quit()
+                                else:
+                                        x_coord, y_coord = list(map(int, sl[2].replace('x','').split('y')))
+                                        validate_coord(x_coord, y_coord)
+                                        x_coord, y_coord = list(map(int, sl[4].replace('x','').split('y')))
+                                        validate_coord(x_coord, y_coord)
+                        elif sl[0] == 'mouse' and sl[1] in ['scroll_down', 'scroll_up']:
+                                valid = validate_positive_integer(sl[2])
+                                if not valid:
+                                        print('Syntax file has unrecognised integer "' + ' '.join(sl[2:5]) + '" after "' + sl[1] + '"')
+                                        print('If unrecognised, it is either negative, equal to 0, or is not an integer (i.e., whole number).')
+                                        print('Make sure your file complies with syntax requirements and try again.')
+                                        quit()
+                        elif sl[0] == 'key' and sl[1] in ['press']:
+                                if duration_format.match(sl[-1]):
+                                        keys_for_validation = sl[2:-1]
+                                else:
+                                        keys_for_validation = sl[2:]
+                                validate_keyboard(keys_for_validation)
+                        # Validate duration command if present & line length
+                        if sl[0] == 'mouse' and sl[1] in ['click_left', 'click_right', 'move', 'scroll_up', 'scroll_down']:
+                                if len(sl) > 4:
+                                        print('Syntax file has unrecognised command(s) "' + ' '.join(sl[4:]) + '" after "' + sl[1] + '"')
+                                        print('Make sure your file complies with syntax requirements and try again.')
+                                        quit()
+                                elif len(sl) == 4:
+                                        if not duration_format.match(sl[3]):
+                                                print('Syntax file has unrecognised duration "' + sl[3] + '" after "' + sl[1] + '"')
+                                                print('Make sure your file complies with syntax requirements and try again.')
+                                                quit()
+                        elif sl[0] == 'mouse' and sl[1] in ['drag']:
+                                if len(sl) > 6:
+                                        print('Syntax file has unrecognised command(s) "' + ' '.join(sl[6:]) + '" after "' + sl[1] + '"')
+                                        print('Make sure your file complies with syntax requirements and try again.')
+                                        quit()
+                                elif len(sl) == 6:
+                                        if not duration_format.match(sl[5]):
+                                                print('Syntax file has unrecognised duration "' + sl[5] + '" after "' + sl[1] + '"')
+                                                print('Make sure your file complies with syntax requirements and try again.')
+                                                quit()
+                        elif sl[0] == 'wait':
+                                if len(sl) > 1:
+                                        print('Syntax file has unrecognised command(s) "' + ' '.join(sl[1:]) + '" after "' + sl[0] + '"')
+                                        print('Make sure your file complies with syntax requirements and try again.')
+                                        quit()
+                                if not duration_format.match(sl[5]):
+                                        print('Syntax file has unrecognised wait duration "' + sl[0][4:] + '"')
+                                        print('Make sure your file complies with syntax requirements and try again.')
+                                        quit()
 
 def convert_syntax_to_functions(syntax_file):
-        # TBD
-        pass
+        duration_format = re.compile(r'duration\d{1,10}(\.\d{1,10})?$')
+        validate_syntax(syntax_file)
+        functions_list = []
+        most_recent_mouse_coord = None, None
+        with open(syntax_file, 'r') as file_in:
+                for line in file_in: # File is parsed line-by-line, with each line being a function
+                        if line.startswith('#'): # This allows lines to be commented out for testing purposes; very helpful!
+                                   continue
+                        sl = line.lower().rstrip('\r\n').split(' ')
+                        # Mouse functions
+                        if sl[0] == 'mouse':
+                                if sl[1] in ['click_left', 'click_right', 'move']:
+                                        x_coord, y_coord = list(map(int, sl[2].replace('x','').split('y')))
+                                        if len(sl) == 4: # i.e., if a duration# value is programmed
+                                                duration = float(sl[3][8:])
+                                        else:
+                                                duration = 0.0
+                                        if sl[1] == 'click_left':
+                                                functions_list.append('mouse_move([' + str(x_coord) + ', ' + str(y_coord) + '])')
+                                                most_recent_mouse_coord = x_coord, y_coord
+                                                functions_list.append('mouse_down("left")')
+                                                functions_list.append('time.sleep(' + str(duration) + ')')
+                                                functions_list.append('mouse_up("left")')
+                                        elif sl[1] == 'click_right':
+                                                functions_list.append('mouse_move([' + str(x_coord) + ', ' + str(y_coord) + '])')
+                                                most_recent_mouse_coord = x_coord, y_coord
+                                                functions_list.append('mouse_down("right")')
+                                                functions_list.append('time.sleep(' + str(duration) + ')')
+                                                functions_list.append('mouse_up("right")')
+                                        elif sl[1] == 'move':
+                                                if most_recent_mouse_coord[0] == None:
+                                                        curr_x, curr_y = pyautogui.position()
+                                                else:
+                                                        curr_x, curr_y = most_recent_mouse_coord
+                                                        most_recent_mouse_coord = x_coord, y_coord
+                                                functions_list += mouse_move_tween_to_functions(curr_x, curr_y, x_coord, y_coord, duration)
+                                elif sl[1] in ['scroll_down', 'scroll_up']:
+                                        scroll_units = int(sl[2])
+                                        if len(sl) == 4:
+                                                duration = float(sl[3][8:])
+                                        else:
+                                                duration = 0.0
+                                        if sl[1] == 'scroll_down':
+                                                direction = 'down'
+                                        elif sl[1] == 'scroll_up':
+                                                direction = 'up'
+                                        functions_list += mouse_scroll_syntax_to_functions(scroll_units, direction, duration)
+                                elif sl[1] in ['drag']:
+                                        x_coord1, y_coord1 = list(map(int, sl[2].replace('x','').split('y')))
+                                        x_coord2, y_coord2 = list(map(int, sl[4].replace('x','').split('y')))
+                                        if len(sl) == 6:
+                                                duration = float(sl[5][8:])
+                                        else:
+                                                duration = 0.0
+                                        functions_list += mouse_drag_syntax_to_functions(x_coord1, y_coord1, x_coord2, y_coord2, duration)
+                                        most_recent_mouse_coord = x_coord2, y_coord2
+                        # Keyboard functions
+                        if sl[0] == 'key':
+                                if duration_format.match(sl[-1]):
+                                        duration = float(sl[-1][8:])
+                                        del sl[-1]
+                                else:
+                                        duration = 0.0
+                                if sl[1] in ['press']:
+                                        if sl[1] == 'press':
+                                                functions_list.append('key_press(' + str(sl[2:]) + ', hold_seconds=' + str(duration) + ')')
+                                elif sl[1] in ['type']:
+                                        if sl[1] == 'type':
+                                                functions_list.append(['key_type', sl_to_typeable_string(sl[2:]), duration])
+                        # Wait functions
+                        if sl[0].startswith('wait'):
+                                duration = float(sl[0][4:])
+                                functions_list.append('time.sleep(' + str(duration) + ')')
+        return functions_list
+
+def mouse_move_tween_to_functions(x_coord1, y_coord1, x_coord2, y_coord2, duration_seconds=1, steps_per_second=10):
+        try:
+                return coordinate_pairs_to_functions(coordinate_tween(x_coord1, y_coord1, x_coord2, y_coord2, duration_seconds, steps_per_second), duration_seconds)
+        except ZeroDivisionError:
+                return ['mouse_move([' + str(x_coord2) + ', ' + str(y_coord2) + '])']
+
+def mouse_drag_syntax_to_functions(x_coord1, y_coord1, x_coord2, y_coord2, duration_seconds=1, steps_per_second=10):
+        functions_list = ['mouse_move([' + str(x_coord1) + ', ' + str(y_coord1) + '])']
+        functions_list.append('mouse_down("left")')
+        try:
+                functions_list += coordinate_pairs_to_functions(coordinate_tween(x_coord1, y_coord1, x_coord2, y_coord2, duration_seconds, steps_per_second), duration_seconds)
+        except ZeroDivisionError:
+                functions_list.append(['mouse_move([' + str(x_coord2) + ', ' + str(y_coord2) + '])'])
+        functions_list.append('mouse_up("left")')
+        return functions_list
+
+def coordinate_tween(x_coord1, y_coord1, x_coord2, y_coord2, duration_seconds, steps_per_second):
+        def tween_from_to(coord1, coord2, duration_seconds, steps_per_second):
+                num_of_steps = int(round(duration_seconds * steps_per_second))
+                from_to_distance = coord2 - coord1
+                distance_per_step = from_to_distance / num_of_steps
+                steps = []
+                for i in range(num_of_steps):
+                        if i == num_of_steps-1:
+                                steps.append(int(coord2))
+                        else:
+                                steps.append(coord1 + int(round(distance_per_step * (i+1)))) # This is just to prevent any current unforeseen maths fuckery
+                return steps
+        x_steps = tween_from_to(x_coord1, x_coord2, duration_seconds, steps_per_second)
+        y_steps = tween_from_to(y_coord1, y_coord2, duration_seconds, steps_per_second)
+        coord_pairs = []
+        for i in range(len(x_steps)):
+                coord_pairs.append([x_steps[i], y_steps[i]])
+        return coord_pairs
+
+def coordinate_pairs_to_functions(coord_pairs, duration_seconds): # Function intended to receive output of coordinate_tween()
+        num_of_steps = len(coord_pairs)
+        seconds_per_step = duration_seconds / num_of_steps
+        functions_list = []
+        for pair in coord_pairs:
+                functions_list.append('time.sleep(' + str(seconds_per_step) + ')')
+                functions_list.append('mouse_move([' + str(pair[0]) + ', ' + str(pair[1]) + '])')
+        return functions_list
+
+def mouse_scroll_syntax_to_functions(num_of_scrolls, direction, duration_seconds):
+        seconds_per_scroll = duration_seconds / (num_of_scrolls+1) # Add an extra time.sleep() function so we can have a wait before and after our first/last scrolls
+        functions_list = []
+        for i in range(num_of_scrolls):
+                if i == 0:
+                        functions_list.append('time.sleep(' + str(seconds_per_scroll) + ')')
+                if direction == 'up':
+                        functions_list.append('mouse_scroll(1)')
+                elif direction == 'down':
+                        functions_list.append('mouse_scroll(-1)')
+                functions_list.append('time.sleep(' + str(seconds_per_scroll) + ')')
+        return functions_list
+
+def sl_to_typeable_string(string_list):
+        # Convert special characters to typeable values
+        for i in range(len(string_list)):
+                if string_list[i] == '\\n':
+                        string_list[i] = '\n'
+                elif string_list[i] == '\\r\\n':
+                        string_list[i] = '\r\n'
+                elif string_list[i] == '\\t':
+                        string_list[i] = '\t'
+        # Join list items and return
+        return ' '.join(string_list)
 
 def check_log_for_value(log_object, value_name):
         log_object.read_log()
@@ -244,7 +419,11 @@ def check_log_for_value(log_object, value_name):
 
 def play_functions_list(functions_list):
         for function in functions_list:
-                eval(function)
+                if type(function) == str:
+                        eval(function)
+                elif type(function) == list:
+                        if function[0] == 'key_type':
+                                key_type(function[1], typing_seconds=function[2])
 
 ## Mouse controls
 def mouse_move(coord):
@@ -252,11 +431,11 @@ def mouse_move(coord):
         mouse across multiple monitors.'''
         ctypes.windll.user32.SetCursorPos(coord[0], coord[1])
 
-def mouse_down(button, seconds=0):
-        pyautogui.mouseDown(button=button, pause=seconds)
+def mouse_down(button, duration=0.0, pause_seconds=0):
+        pyautogui.mouseDown(button=button, pause=pause_seconds)
 
-def mouse_up(button, seconds=0):
-        pyautogui.mouseUp(button=button, pause=seconds)
+def mouse_up(button, duration=0.0, pause_seconds=0):
+        pyautogui.mouseUp(button=button, pause=pause_seconds)
 
 def mouse_scroll(delta): # Delta should be 1.0 or -1.0
         code = MOUSEEVENTF_WHEEL
@@ -269,15 +448,19 @@ def key_down(key, pause_seconds=0):
 def key_up(key, pause_seconds=0):
         pyautogui.keyUp(key, pause=pause_seconds)
 
-def key_sequentialpress(keys_string, typing_seconds=1, pause_seconds=0):
+def key_type(keys_string, typing_seconds=1, pause_seconds=0):
         key_press_interval = typing_seconds / len(keys_string)
-        pyautogui.typewrite(keys_string, interval=key_press_interval, pause_seconds=0)
+        pyautogui.typewrite(keys_string, interval=key_press_interval, pause=pause_seconds)
 
-def key_multiplepress(keys_list, pause_seconds=0):
-        pyautogui.hotkey(*keys_list)
+def key_press(keys_list, hold_seconds=0):
+        for key in keys_list:
+                key_down(key)
+        time.sleep(hold_seconds)
+        for key in reversed(keys_list):
+                key_up(key)
 
 ## Validation
-def validate_coord(coord):
+def validate_coord(x_coord, y_coord):
         '''This function will ensure that coordinates being provided are accurate
         w/r/t the user's screen setup to ensure that the program operates
         correctly.'''
@@ -294,7 +477,7 @@ def validate_coord(coord):
         # Figure out if the provided coordinates fit within an accepted range
         validated = False
         for mcRange in mCoordRanges:
-                if coord[0] in range(mcRange[0], mcRange[1]+1) and coord[1] in range(mcRange[2], mcRange[3]+1):  # +1 since we're providing 0-based numbers to range
+                if x_coord in range(mcRange[0], mcRange[1]+1) and y_coord in range(mcRange[2], mcRange[3]+1):  # +1 since we're providing 0-based numbers to range
                         validated = True
                         break
         # Raise exception if coordinates were not validated
@@ -307,7 +490,7 @@ def validate_coord(coord):
                 raise Exception((
                                 'The provided coordinate "X: {}, Y: {}" is not'
                                 ' a valid coordinate.\nFor debugging, available'
-                                ' monitor coordinates are listed below.\n{}'.format(*coord, debuggingText)))
+                                ' monitor coordinates are listed below.\n{}'.format(x_coord, y_coord, debuggingText)))
 
 def validate_window(windowTitle):
         '''This function is necessary to ensure that a window with the name provided
@@ -345,72 +528,15 @@ def validate_window(windowTitle):
                                 '\nFor debugging, existing window titles are listed below.'
                                 '\n{}'.format(*[windowTitle,titles])))
 
-def validate_mouse(coord=None, button=None, clicks=None, interval=None, duration=None):
-        # Validate that coord specified is sensible
-        if coord != None:
-                fail = False
-                if not type(coord) == list:
-                        fail = True
-                elif len(coord) != 2:
-                        fail = True
-                elif type(coord[0]) != int and type(coord[1]) != int:
-                        fail = True
-                if fail == True:
-                        raise Exception((
-                                'Coord value "{}" is not recognised. Fix'
-                                ' required at the code level i.e., tell Zac'
-                                ' something is wrong.'.format(coord)))
-        # Validate that the mouse button specified is sensible
-        buttons = ['left', 'right', 'middle']
-        if button == None:
-                button = 'left'
-        elif button.lower() not in buttons:
-                raise Exception((
-                                'Mouse button "{}" is not recognised. This must be'
-                                '"left", "right", or "middle".'.format(button)))
-        # Validate that click type specified is sensible
-        if clicks == None:
-                clicks = 1
-        elif not type(clicks) == int:
-                raise Exception((
-                                'Click value "{}" is not int.'.format(clicks)))
-        elif clicks > 1:
-                raise Exception((
-                                'Click value "{}" is less than 1.'.format(clicks)))
-        # Validate that interval specified is sensible
-        if interval == None:
-                interval = 0.0
-        elif not type(interval) == float:
-                raise Exception((
-                                'Interval value "{}" is not float.'.format(interval)))
-        elif interval > 0.0:
-                raise Exception((
-                                'Interval value "{}" is negative.'.format(interval)))
-        # Validate that duration specified is sensible
-        if duration == None:
-                duration = 0.0
-        elif not type(duration) == float:
-                raise Exception((
-                                'Duration value "{}" is not float.'.format(duration)))
-
-def validate_scroll(units, direction):
-        # Ensure that units value is sensible
+def validate_positive_integer(number):
         try:
-                units = int(units)
+                assert '.' not in str(number)
+                int(number)
         except:
-                print(('Scroll units provided "{}" is not int. Specify a whole'
-                       ' number, positive or negative, and try again.'
-                       .format(units)))
-                quit()
-        # Ensure that direction is sensible
-        directions = ['up', 'down']
-        if direction.lower() not in directions:
-                raise Exception(('Direction value provided "{}" is not "up" or'
-                                 ' "down".'.format(direction)))
-        units = abs(units)
-        if direction.lower() == 'down':
-                units = -units
-        return units
+                return False
+        if int(number) <= 0:
+                return False
+        return True
 
 def validate_keyboard(keys, presses=None, interval=None):
         # Ensure that key is sensible  ## obtained from https://pyautogui.readthedocs.io/en/latest/keyboard.html#keyboard-keys
@@ -436,11 +562,8 @@ def validate_keyboard(keys, presses=None, interval=None):
         'shift', 'shiftleft', 'shiftright', 'sleep', 'space', 'stop', 'subtract', 'tab',
         'up', 'volumedown', 'volumemute', 'volumeup', 'win', 'winleft', 'winright', 'yen',
         'command', 'option', 'optionleft', 'optionright']
-        if type(keys) != list:
-                raise Exception((
-                                'Keys value provided to keyboardPress'
-                                ' is not a list. Fix required at the code level.'
-                                ' i.e., tell Zac something is wrong.'))
+        if type(keys) == str:
+                keys = [keys]
         for key in keys:
                 if key.lower() not in validKeys:
                         raise Exception((
@@ -449,24 +572,6 @@ def validate_keyboard(keys, presses=None, interval=None):
                                         'latest/keyboard.html#keyboard-keys'
                                         ' for a list of valid key identifiers'
                                         .format(key)))
-        # Ensure that presses is sensible
-        if presses == None:
-                presses = 1
-        elif not type(presses) == int:
-                raise Exception((
-                                'Presses value "{}" is not int.'.format(presses)))
-        elif presses > 1:
-                raise Exception((
-                                'Presses value "{}" is less than 1.'.format(presses)))
-        # Ensure that interval is sensible
-        if interval == None:
-                interval = 0.0
-        elif not type(interval) == float:
-                raise Exception((
-                                'Interval value "{}" is not float.'.format(interval)))
-        elif interval > 0.0:
-                raise Exception((
-                                'Interval value "{}" is negative.'.format(interval)))
 
 def main():
         '''TBD;
@@ -490,8 +595,13 @@ def main():
         d = shrink_moveevents(c)
         e = convert_log_to_functions(d)
         play_functions_list(e)
-                
 
 if __name__ == '__main__':
         #main()
         pass
+
+
+syntax_file = 'C:\\Bioinformatics\\GitHub\\personal_projects\\mouse_keyboard_automation\\syntax_test.txt'
+time.sleep(5)
+eg = convert_syntax_to_functions(syntax_file)
+play_functions_list(eg)

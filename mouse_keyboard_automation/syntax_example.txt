@@ -1,0 +1,10 @@
+mouse click_left x0y100 duration5
+mouse move x100y200 duration1
+wait5
+mouse drag x100y200 to x200y300 duration2
+mouse scroll_down 2 duration2
+mouse scroll_up 3 duration1.5
+key press ctrl c
+key press ctrl space duration5
+key type This " be ' a # test \' of \" whether \n this code \t can be quit() broken []"
+key type This " be ' a # test \' of \" whether \n this code \t can be quit() broken []" duration10
