@@ -7,7 +7,7 @@
 '''
 
 # Import modules
-import pyautogui, pygetwindow, keyboard, mouse, queue, ctypes, screeninfo
+import pyautogui, pygetwindow, keyboard, mouse, queue, ctypes, screeninfo, time
 
 # Hard-coded parameter setup
 WHEEL_DELTA = 120 # Taken from boppreh's _winmouse.py code, used as Windows OS default scroll distance
@@ -150,6 +150,77 @@ def convert_log_to_functions(log_list, unpress_keys=True):
                                 functions_list.append('key_up("' + key + '")')
         return functions_list
 
+def shrink_typing_functions(functions_list):
+        def derive_function_type(function):
+                if function.startswith('mouse'):
+                        return 'mouse'
+                elif function.startswith('time'):
+                        return 'time'
+                elif function.startswith('key'):
+                        return 'key'
+        # Setup
+        new_functions_list = []
+        previous_function = None
+        previous_function_type = None
+        ctrlkey_pressed = False
+        shiftkey_pressed = False
+        altkey_pressed = False
+        # Main function loop
+        for function in functions_list:
+                function_type = derive_function_type(function)
+                # Handle hotkey presses
+                if function_type == 'key':
+                        key_pressed, key_direction = function.split('"')[1], function.split('(')[0].split('_')[1]
+                        if (key_pressed == 'ctrl' or key_pressed == 'shift' or key_pressed == 'alt') and key_direction == 'down':
+                                if key_pressed == 'ctrl':
+                                        ctrlkey_pressed = True
+                                elif key_pressed == 'shift':
+                                        shiftkey_pressed = True
+                                elif key_pressed == 'alt':
+                                        altkey_pressed = True
+                        elif (key_pressed == 'ctrl' or key_pressed == 'shift' or key_pressed == 'alt') and key_direction == 'up':
+                                if key_pressed == 'ctrl':
+                                        ctrlkey_pressed = False
+                                elif key_pressed == 'shift':
+                                        shiftkey_pressed = False
+                                elif key_pressed == 'alt':
+                                        altkey_pressed = False
+                # Handle new key chains
+                if previous_function_type != 'key' and function_type == 'key':
+                        key_pressed, key_direction = function.split('"')[1], function.split('(')[0].split('_')[1]
+                        # Handle hotkeys
+                        if (key_pressed == 'ctrl' or key_pressed == 'shift' or key_pressed == 'alt') and key_direction == 'down':
+                                hotkey_pressed = key_pressed
+                                process_key_chain(hotkey_chain) #TBD
+                                hotkey_chain = [function]
+                                sleep_chain = []
+                        # Handle normal keys
+                        elif key_direction == 'down':
+                                process_key_chain(hotkey_chain) #TBD
+                                typing_chain = [function]
+                                sleep_chain = []
+                # Handle stops inbetween a key chain
+                elif previous_function_type == 'key' and function_type == 'time':
+                        sleep_chain.append(function) # This is mostly ignored e.g., we don't count it as a previous_function
+                # Handle key chain continuation
+                elif previous_function_type == 'key' and function_type == 'time':
+                        key_pressed, key_direction = function.split('"')[1], function.split('(')[0].split('_')[1]
+                        # Handle hotkeys
+                        if (key_pressed == 'ctrl' or key_pressed == 'shift' or key_pressed == 'alt') and key_direction == 'down':
+                                hotkey_chain.append(function)
+                        # Handle normal keys
+                        elif key_direction == 'down':
+                                typing_chain.append(function)
+                
+                
+                if function.startswith('mouse'):
+                        new_functions_list.append(function)
+                
+                previous_function = function
+                previous_function_type = function_type
+                
+        pass
+
 def convert_syntax_to_functions(syntax_file):
         # TBD
         pass
@@ -192,11 +263,18 @@ def mouse_scroll(delta): # Delta should be 1.0 or -1.0
         user32.mouse_event(code, 0, 0, int(delta * WHEEL_DELTA), 0)
 
 ## Keyboard controls
-def key_down(key, seconds=0):
-        pyautogui.keyDown(key, pause=seconds)
+def key_down(key, pause_seconds=0):
+        pyautogui.keyDown(key, pause=pause_seconds)
 
-def key_up(key, seconds=0):
-        pyautogui.keyUp(key, pause=seconds)
+def key_up(key, pause_seconds=0):
+        pyautogui.keyUp(key, pause=pause_seconds)
+
+def key_sequentialpress(keys_string, typing_seconds=1, pause_seconds=0):
+        key_press_interval = typing_seconds / len(keys_string)
+        pyautogui.typewrite(keys_string, interval=key_press_interval, pause_seconds=0)
+
+def key_multiplepress(keys_list, pause_seconds=0):
+        pyautogui.hotkey(*keys_list)
 
 ## Validation
 def validate_coord(coord):
@@ -398,8 +476,6 @@ def main():
         3) Re-add coord tracking function to allow the user to make manual adjustments to the config file more simply
         4) Add extra functionality into the config file approach such as string strip/concatenation for values copied into clipboard?
         '''
-        #mouseCoordTrack()
-        #mouseScrollTrack()
         
         ## TESTING ZONE ##
         a = Keylogging()
