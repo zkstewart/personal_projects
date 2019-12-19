@@ -141,13 +141,19 @@ def craft(skillbar_coords, wait_times, num_iterations, template_directory):
         for i in range(num_iterations):
                 for x in range(len(skillbar_coords)):
                         q = start_key_logger()
-                        if x == 0: # Click the synthesise button and give character time to set up
+                        # Click the synthesise button and give character time to set up
+                        if x == 0:
+                                times_failed = 0
                                 while True:
+                                        if times_failed == 10:
+                                                print('Consistently failed to find synthesise button; program exiting now.')
+                                                quit()
                                         screenshot_grayscale = take_screenshot()
                                         synthesize_x_coord, synthesize_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'synthesize_button.png'))
                                         if synthesize_x_coord == False:
                                                 print('Synthesize button not visible; waiting ' + str(WAIT_TIME) + ' seconds...')
                                                 time.sleep(WAIT_TIME)
+                                                times_failed += 1
                                                 continue
                                         break
                                 mouse_move([int(synthesize_x_coord+int(SYNTHESIZE_X_OFFSET / (1920 / monitor.width))), int(synthesize_y_coord+int(SYNTHESIZE_Y_OFFSET / (1080 / monitor.height)))])
@@ -158,6 +164,20 @@ def craft(skillbar_coords, wait_times, num_iterations, template_directory):
                                 sleepTime=variableTime(1.5) 
                                 time.sleep(sleepTime)
                                 q = restart_keylogger_for_specialcommand('CTRL_esc')
+                        # Verify that character is set up (this is a latency contingency)
+                        times_failed = 0
+                        while True:
+                                if times_failed == 10:
+                                        print('Consistently failed to find crafting window; program exiting now.')
+                                        quit()
+                                screenshot_grayscale = take_screenshot()
+                                craftwindow_x_coord, craftwindow_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'crafting_window_bottom.png'))
+                                if craftwindow_x_coord == False:
+                                        print('Crafting window button not visible; waiting ' + str(WAIT_TIME) + ' seconds...')
+                                        time.sleep(WAIT_TIME)
+                                        times_failed += 1
+                                        continue
+                                break
                         # Click macro button and wait
                         mouse_move(skillbar_coords[x])
                         mouse_down('left')
