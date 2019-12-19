@@ -1,31 +1,15 @@
 #! python3
-# autoMK.py
-# Framework for automating mouse and keyboard actions. Windows only.
-'''Functions list:
--Mouse coordinate helper
--Mouse scroll helper
--Mouse click, press, depress, move, drag, scroll
--Keyboard type, 
-TBD:
--Window helper
+# ffxiv_autoCLICK.py
+# Program that automates the process of crafting multiple items via clicking
+# macro boxes in specified locations.
 '''
-
-'''Current areas for modification / improvement:
-        1-Add tweening functions to mouse movement [complicates syntax? unnecessary?]
-        2-Add relative dragging
-        3-Multiple point dragging [unnecessary? can be accomplished with mouse down->move->mouse up]
 '''
 
 # Import modules
-import os, pyautogui, keyboard, queue, ctypes, screeninfo, time, sys, random, cv2
+import os, pyautogui, keyboard, queue, ctypes, screeninfo, time, sys, random, cv2, argparse, textwrap
 from PIL import Image
 import numpy as np
 from mss import mss
-
-# Hard-coded parameter setup
-WHEEL_DELTA = 120 # Taken from boppreh's _winmouse.py code, used as Windows OS default scroll distance
-MOUSEEVENTF_WHEEL = 0x800 # Taken from boppreh's _winmouse.py code
-user32 = ctypes.WinDLL('user32', use_last_error = True) # Taken from boppreh's _winmouse.py code
 
 # Define functions
 ## Template-matching related
@@ -184,12 +168,95 @@ def craft(skillbar_coords, wait_times, num_iterations, template_directory):
                         time.sleep(sleepTime)
                         q = restart_keylogger_for_specialcommand('CTRL_esc')
 
+def preprogrammed_crafts(args, preprogrammed_list):
+        # Define preprogrammed parameters
+        preprogrammed_crafts_dict = {'instacraft': [[12], [10], 20]} # Format is [hotbar number, wait times, iterations]
+        # Substitute unprovided arguments with preprogrammed ones
+        if args.hotbar_number == None:
+                args.hotbar_number = preprogrammed_crafts_dict[args.preprogrammed.lower()][0]
+        if args.wait_time == None:
+                args.wait_time = preprogrammed_crafts_dict[args.preprogrammed.lower()][1]
+        if args.iterations == None:
+                args.iterations = preprogrammed_crafts_dict[args.preprogrammed.lower()][2]
+        return args
+
 def main():
+        def validate_args(args, preprogrammed_list):
+                # Provide detailed help if specified
+                if args.detailedHelp:
+                        instacraft = 'instacraft = [-h: 12, -w: 10, -i: 20]'
+                        printList = str(preprogrammed_list).replace("'", "")
+                        printList = eval(printList)
+                        for entry in printList:
+                                entry = textwrap.dedent(entry)
+                                entry = entry.strip('\n').replace('\n', ' ')
+                                for line in textwrap.wrap(entry, width=50):
+                                        print(line)
+                                print('')
+                        quit()
+                # Default arguments to pre-programmed values if applicable
+                if args.preprogrammed == None:
+                        if args.hotbar_number == None:
+                                print('-p and/or -h argument was not provided')
+                                quit()
+                        elif args.wait_time == None:
+                                print('-p and/or -w argument was not provided')
+                                quit()
+                        elif args.iterations == None:
+                                print('-p and/or -i argument was not provided')
+                                quit()
+                else:
+                        args = preprogrammed_crafts(args, preprogrammed_list)
+                # Validate that arguments are sensible
+                for num in args.hotbar_number:
+                        if not 0 < num < 13:
+                                print('-h argument must be a positive integer from 1-12')
+                                quit()
+                for num in args.wait_time:
+                        if 0 > num:
+                                print('-w argument must be a positive integer')
+                                quit()
+                if 0 > args.iterations:
+                        print('-i argument must be a positive integer')
+                        quit()
+                # Substitute hotbar numbers with their respective coordinates as list
+                for i in range(len(args.hotbar_number)):
+                        args.hotbar_number[i] = skillbar4_coordinates()[args.hotbar_number[i]-1]
+                return args
         # Hard-coded declarations of relevant file locations
         '''It will be ideal to somehow store this in a semi-permanent way within
         the code; need to learn how to do that first!
         '''
         template_directory = r'C:\Bioinformatics\GitHub\personal_projects\FFXIV_related\template_images\autoclick'
+        # Hard-coded declaration of pre-programmed craft arguments
+        preprogrammed_list = ['instacraft']
+        
+        ##### USER INPUT SECTION
+        usage = """%(prog)s automates clicks for FFXIV crafting. It has been tuned
+        to run on the author's PC - hotbar locations are hard-coded.
+        Type -H for a full list of pre-programmed crafting automations.
+        """
+        p = argparse.ArgumentParser(description=usage)
+        p.add_argument("-p", dest="preprogrammed", choices=preprogrammed_list,
+                       help="""Specify a pre-programmed craft; this argument
+                       automatically sets the below arguments, but you can
+                       "overwrite" the default setting for the pre-programmed
+                       craft by specifying these manually.""")
+        p.add_argument("-n", dest="hotbar_number", nargs="+", type=int,
+                       help="""Hotbar number (from 1 to 12); if the craft
+                       requires more than 1 macro, specify multiple values
+                       separated by a space.""")
+        p.add_argument("-w", dest="wait_time", nargs="+", type=int,
+                       help="""Number of seconds to wait for the macro to end
+                       ; if the craft requires more than 1 macro, specify
+                       multiple values separated by a space""")
+        p.add_argument("-i", dest="iterations", type=int,
+                       help="Number of items to craft")
+        p.add_argument("-H", dest="detailedHelp", action='store_true',
+                     help="Provide details of preprogrammed function")
+        args = p.parse_args()
+        args = validate_args(args, preprogrammed_list)
+        
         # Single monitor mode
         if len(screeninfo.get_monitors()) == 1:
                 single_monitor_mode = True
@@ -199,9 +266,9 @@ def main():
         if single_monitor_mode:
                 print('Single monitor mode is active; ' + str(SINGLE_MONITOR_DELAY) + ' second delay will be enacted now to allow for alt tabbing.')
                 time.sleep(SINGLE_MONITOR_DELAY)
-        #craft([skillbar4_coordinates()[0]], [41.5], 20, template_directory) # Hard-coded macro 1: 40dur 1800p 17.0k nf
-        #craft([skillbar4_coordinates()[1]], [37], 20, template_directory) # Hard-coded macro 2: 40dur 1600p 15.0k nf
-        craft([skillbar4_coordinates()[11]], [11], 22, template_directory) # Hard-coded macro 3: instacraft
+        
+        # Call function
+        craft(args.hotbar_number, args.wait_time, args.iterations, template_directory) # Hard-coded macro 3: instacraft
         
 
 if __name__ == '__main__':
