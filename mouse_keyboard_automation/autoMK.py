@@ -7,7 +7,12 @@
 '''
 
 # Import modules
-import pyautogui, pygetwindow, keyboard, mouse, queue, ctypes, screeninfo, time, re
+import pyautogui, keyboard, mouse, queue, ctypes, screeninfo, time, re, os
+from tkinter import scrolledtext
+from tkinter import filedialog
+#from tkinter import messagebox
+from tkinter import *
+#from tkinter.ttk import *
 
 # Hard-coded parameter setup
 WHEEL_DELTA = 120 # Taken from boppreh's _winmouse.py code, used as Windows OS default scroll distance
@@ -39,11 +44,66 @@ class Keylogging:
                 self.queue = queue.Queue()
                 self.start_logging()
         def read_log(self):
-                self.current_log = list(self.queue)
+                if type(self.queue) == queue.Queue:
+                        self.current_log = list(self.queue.queue)
+                else:
+                        self.current_log = list(self.queue)
         def block_until(self, break_key):
                 self.is_logging = True
                 self.queue = keyboard.record(until = break_key)
                 self.is_logging = False
+
+def key_down(key, pause_seconds=0):
+        pyautogui.keyDown(key, pause=pause_seconds)
+
+def key_up(key, pause_seconds=0):
+        pyautogui.keyUp(key, pause=pause_seconds)
+
+def key_type(keys_string, typing_seconds=1, pause_seconds=0):
+        key_press_interval = typing_seconds / len(keys_string)
+        pyautogui.typewrite(keys_string, interval=key_press_interval, pause=pause_seconds)
+
+def key_press(keys_list, hold_seconds=0):
+        for key in keys_list:
+                key_down(key)
+        time.sleep(hold_seconds)
+        for key in reversed(keys_list):
+                key_up(key)
+
+def validate_keyboard(keys, presses=None, interval=None):
+        # Ensure that key is sensible  ## obtained from https://pyautogui.readthedocs.io/en/latest/keyboard.html#keyboard-keys
+        validKeys = ['\t', '\n', '\r', ' ', '!', '"', '#', '$', '%', '&', "'", '(',  
+        ')', '*', '+', ',', '-', '.', '/', '0', '1', '2', '3', '4', '5', '6', '7',
+        '8', '9', ':', ';', '<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`',
+        'a', 'b', 'c', 'd', 'e','f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+        'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~',
+        'accept', 'add', 'alt', 'altleft', 'altright', 'apps', 'backspace',
+        'browserback', 'browserfavorites', 'browserforward', 'browserhome',
+        'browserrefresh', 'browsersearch', 'browserstop', 'capslock', 'clear',
+        'convert', 'ctrl', 'ctrlleft', 'ctrlright', 'decimal', 'del', 'delete',
+        'divide', 'down', 'end', 'enter', 'esc', 'escape', 'execute', 'f1', 'f10',
+        'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f2', 'f20',
+        'f21', 'f22', 'f23', 'f24', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9',
+        'final', 'fn', 'hanguel', 'hangul', 'hanja', 'help', 'home', 'insert', 'junja',
+        'kana', 'kanji', 'launchapp1', 'launchapp2', 'launchmail',
+        'launchmediaselect', 'left', 'modechange', 'multiply', 'nexttrack',
+        'nonconvert', 'num0', 'num1', 'num2', 'num3', 'num4', 'num5', 'num6',
+        'num7', 'num8', 'num9', 'numlock', 'pagedown', 'pageup', 'pause', 'pgdn',
+        'pgup', 'playpause', 'prevtrack', 'print', 'printscreen', 'prntscrn',
+        'prtsc', 'prtscr', 'return', 'right', 'scrolllock', 'select', 'separator',
+        'shift', 'shiftleft', 'shiftright', 'sleep', 'space', 'stop', 'subtract', 'tab',
+        'up', 'volumedown', 'volumemute', 'volumeup', 'win', 'winleft', 'winright', 'yen',
+        'command', 'option', 'optionleft', 'optionright']
+        if type(keys) == str:
+                keys = [keys]
+        for key in keys:
+                if key.lower() not in validKeys:
+                        raise Exception((
+                                        'Key value "{}" is not valid. Refer to'
+                                        ' https://pyautogui.readthedocs.io/en/'
+                                        'latest/keyboard.html#keyboard-keys'
+                                        ' for a list of valid key identifiers'
+                                        .format(key)))
 
 ## Mouse-related functions
 class Mouselogging:
@@ -74,6 +134,53 @@ class Mouselogging:
                 self.is_logging = True
                 self.queue = mouse.record(button = break_click)
                 self.is_logging = False
+
+def mouse_move(coord):
+        '''We use ctypes instead of pyautogui since ctypes supports moving the
+        mouse across multiple monitors.'''
+        ctypes.windll.user32.SetCursorPos(coord[0], coord[1])
+
+def mouse_down(button, duration=0.0, pause_seconds=0):
+        pyautogui.mouseDown(button=button, pause=pause_seconds)
+
+def mouse_up(button, duration=0.0, pause_seconds=0):
+        pyautogui.mouseUp(button=button, pause=pause_seconds)
+
+def mouse_scroll(delta): # Delta should be 1.0 or -1.0
+        code = MOUSEEVENTF_WHEEL
+        user32.mouse_event(code, 0, 0, int(delta * WHEEL_DELTA), 0)
+
+def validate_coord(x_coord, y_coord):
+        '''This function will ensure that coordinates being provided are accurate
+        w/r/t the user's screen setup to ensure that the program operates
+        correctly.'''
+        # Obtain monitor details from screeninfo
+        monitors = screeninfo.get_monitors()
+        # Derive the coordinates for each monitor
+        mCoordRanges = []
+        for m in monitors:
+                xmin = m.x
+                xmax = m.width + m.x - 1  # -1 to make it 0-based
+                ymin = m.y
+                ymax = m.height + m.y - 1
+                mCoordRanges.append([xmin, xmax, ymin, ymax])
+        # Figure out if the provided coordinates fit within an accepted range
+        validated = False
+        for mcRange in mCoordRanges:
+                if x_coord in range(mcRange[0], mcRange[1]+1) and y_coord in range(mcRange[2], mcRange[3]+1):  # +1 since we're providing 0-based numbers to range
+                        validated = True
+                        break
+        # Raise exception if coordinates were not validated
+        if validated == False:
+                debuggingText = ''
+                for i in range(len(mCoordRanges)):
+                        debuggingText += 'Monitor ' + str(i+1) + '=X:' + str(mCoordRanges[i][0]) + \
+                        '->' + str(mCoordRanges[i][1]) + ', Y:' + str(mCoordRanges[i][2]) + '->' + \
+                        str(mCoordRanges[i][3]) + '\n'
+                raise Exception((
+                                'The provided coordinate "X: {}, Y: {}" is not'
+                                ' a valid coordinate.\nFor debugging, available'
+                                ' monitor coordinates are listed below.\n{}'.format(x_coord, y_coord, debuggingText)))
 
 ## Log-handling functions
 def merge_logs(log_object1, log_object2):
@@ -150,14 +257,22 @@ def convert_log_to_functions(log_list, unpress_keys=True):
                                 functions_list.append('key_up("' + key + '")')
         return functions_list
 
-def valid_commands():
-        main_commands = ['mouse', 'key', 'wait']
-        second_commands = {'mouse': ['click_left', 'click_right', 'scroll_down',
-                                     'scroll_up', 'drag', 'move'],
-                          'key': ['press', 'type']}
-        return main_commands, second_commands
-
 def validate_syntax(syntax_file):
+        def valid_commands():
+                main_commands = ['mouse', 'key', 'wait']
+                second_commands = {'mouse': ['click_left', 'click_right', 'scroll_down',
+                                             'scroll_up', 'drag', 'move'],
+                                  'key': ['press', 'type']}
+                return main_commands, second_commands
+        def validate_positive_integer(number):
+                try:
+                        assert '.' not in str(number)
+                        int(number)
+                except:
+                        return False
+                if int(number) <= 0:
+                        return False
+                return True
         coord_format = re.compile(r'x\d{1,5}y\d{1,5}')
         duration_format = re.compile(r'duration\d{1,10}(\.\d{1,10})?$')
         with open(syntax_file, 'r') as file_in:
@@ -425,153 +540,151 @@ def play_functions_list(functions_list):
                         if function[0] == 'key_type':
                                 key_type(function[1], typing_seconds=function[2])
 
-## Mouse controls
-def mouse_move(coord):
-        '''We use ctypes instead of pyautogui since ctypes supports moving the
-        mouse across multiple monitors.'''
-        ctypes.windll.user32.SetCursorPos(coord[0], coord[1])
-
-def mouse_down(button, duration=0.0, pause_seconds=0):
-        pyautogui.mouseDown(button=button, pause=pause_seconds)
-
-def mouse_up(button, duration=0.0, pause_seconds=0):
-        pyautogui.mouseUp(button=button, pause=pause_seconds)
-
-def mouse_scroll(delta): # Delta should be 1.0 or -1.0
-        code = MOUSEEVENTF_WHEEL
-        user32.mouse_event(code, 0, 0, int(delta * WHEEL_DELTA), 0)
-
-## Keyboard controls
-def key_down(key, pause_seconds=0):
-        pyautogui.keyDown(key, pause=pause_seconds)
-
-def key_up(key, pause_seconds=0):
-        pyautogui.keyUp(key, pause=pause_seconds)
-
-def key_type(keys_string, typing_seconds=1, pause_seconds=0):
-        key_press_interval = typing_seconds / len(keys_string)
-        pyautogui.typewrite(keys_string, interval=key_press_interval, pause=pause_seconds)
-
-def key_press(keys_list, hold_seconds=0):
-        for key in keys_list:
-                key_down(key)
-        time.sleep(hold_seconds)
-        for key in reversed(keys_list):
-                key_up(key)
-
-## Validation
-def validate_coord(x_coord, y_coord):
-        '''This function will ensure that coordinates being provided are accurate
-        w/r/t the user's screen setup to ensure that the program operates
-        correctly.'''
-        # Obtain monitor details from screeninfo
-        monitors = screeninfo.get_monitors()
-        # Derive the coordinates for each monitor
-        mCoordRanges = []
-        for m in monitors:
-                xmin = m.x
-                xmax = m.width + m.x - 1  # -1 to make it 0-based
-                ymin = m.y
-                ymax = m.height + m.y - 1
-                mCoordRanges.append([xmin, xmax, ymin, ymax])
-        # Figure out if the provided coordinates fit within an accepted range
-        validated = False
-        for mcRange in mCoordRanges:
-                if x_coord in range(mcRange[0], mcRange[1]+1) and y_coord in range(mcRange[2], mcRange[3]+1):  # +1 since we're providing 0-based numbers to range
-                        validated = True
+## Functions related to user interfacing
+def key_to_pause_clicked(): # Top-frame; key_set_button
+        # Start logging keyboard and mouse actions
+        keylog = Keylogging()
+        mouselog = Mouselogging()
+        keylog.start_logging()
+        mouselog.start_logging()
+        # Check logs for button up events; when received, note the time of the event
+        exit_time = None
+        while True:
+                if exit_time != None:
                         break
-        # Raise exception if coordinates were not validated
-        if validated == False:
-                debuggingText = ''
-                for i in range(len(mCoordRanges)):
-                        debuggingText += 'Monitor ' + str(i+1) + '=X:' + str(mCoordRanges[i][0]) + \
-                        '->' + str(mCoordRanges[i][1]) + ', Y:' + str(mCoordRanges[i][2]) + '->' + \
-                        str(mCoordRanges[i][3]) + '\n'
-                raise Exception((
-                                'The provided coordinate "X: {}, Y: {}" is not'
-                                ' a valid coordinate.\nFor debugging, available'
-                                ' monitor coordinates are listed below.\n{}'.format(x_coord, y_coord, debuggingText)))
-
-def validate_window(windowTitle):
-        '''This function is necessary to ensure that a window with the name provided
-        actually exists.'''
-        # Locate all window titles
-        titles = pygetwindow.getAllTitles()
-        nocaseTitles = [title.lower() for title in titles]
-        # Find an exact match for windowTitle in titles list
-        outputTitle = None  # this remains as none if we don't find the window
-        if windowTitle in titles:
-                outputTitle = windowTitle  # nothing needs to change
-        else:
-                bestMatch = None
-                for i in range(len(nocaseTitles)):
-                        # Find a case-insensitive match
-                        if windowTitle.lower() == nocaseTitles[i]:
-                                outputTitle = titles[i]  # now windowTitle has correct captialisation
+                time.sleep(0.1)
+                keylog.read_log()
+                mouselog.read_log()
+                buttons_pressed = set()
+                for key in keylog.current_log:
+                        if key.event_type == 'down':
+                                buttons_pressed.add(key.name)
+                        elif key.event_type == 'up' and key.name in buttons_pressed: # This lets us ignore buttons that were pressed before we started checking for combos
+                                exit_time = key.time
                                 break
-                        # Find a non-ambiguous, case-insensitive best match
-                        elif windowTitle.lower() in nocaseTitles[i] and bestMatch == None:
-                                bestMatch = windowTitle
-                        elif windowTitle.lower() in nocaseTitles[i] and bestMatch != None:
-                                bestMatch = False
-        # Return validated window if found
-        if outputTitle != None:
-                return outputTitle
-        elif bestMatch != None and bestMatch != False:
-                return bestMatch
-        # Raise exception if window was not found
-        else:
-                raise Exception((
-                                'The provided window title "{}" cannot be found.'
-                                '\nEnsure that this window is open or you have typed'
-                                ' the window title correctly and try again.'
-                                '\nFor debugging, existing window titles are listed below.'
-                                '\n{}'.format(*[windowTitle,titles])))
+                for click in mouselog.current_log:
+                        if type(click) == mouse._mouse_event.ButtonEvent:
+                                if click.event_type == 'down':
+                                        buttons_pressed.add(click.button)
+                                elif click.event_type == 'up' and click.button in buttons_pressed:
+                                        if exit_time == None:
+                                                exit_time = click.time
+                                        elif click.time < exit_time: # This is overkill 99.9% of cases, but since we sleep 0.1s it might handle quick, fat fingers
+                                                exit_time = click.time
+                                        break
+        # Process logs to derive our combination
+        global KEYS_TO_PAUSE
+        KEYS_TO_PAUSE = set()
+        for key in keylog.current_log:
+                if key.event_type == 'down' and key.time < exit_time:
+                        KEYS_TO_PAUSE.add(key.name)
+        for click in mouselog.current_log:
+                        if type(click) == mouse._mouse_event.ButtonEvent:
+                                if click.event_type == 'down' and click.time < exit_time:
+                                        KEYS_TO_PAUSE.add(click.button)
+        # Call function to present text to user
+        keys_to_pause_text(KEYS_TO_PAUSE)
+        
+def keys_to_pause_text(KEYS_TO_PAUSE): # Top-frame; key_set_button
+        # Make KEYS_TO_PAUSE presentable as a string to the user
+        keys_to_pause_list = []
+        if 'ctrl' in KEYS_TO_PAUSE:
+                keys_to_pause_list.append('ctrl') # Bring modifier keys to the front
+        if 'shift' in KEYS_TO_PAUSE:
+                keys_to_pause_list.append('shift')
+        if 'alt' in KEYS_TO_PAUSE:
+                keys_to_pause_list.append('alt')
+        for key in KEYS_TO_PAUSE:
+                if key not in ['ctrl', 'shift', 'alt']:
+                        keys_to_pause_list.append(key)
+        keys_to_pause_as_string = ' '.join(keys_to_pause_list)
+        key_display_label.configure(text=keys_to_pause_as_string) # This value was defined as a global in key_to_pause_clicked
 
-def validate_positive_integer(number):
-        try:
-                assert '.' not in str(number)
-                int(number)
-        except:
-                return False
-        if int(number) <= 0:
-                return False
-        return True
+def coord_label_update(): # Top-frame; runs globally, connects to x_display_label, y_display_label 
+        global PAUSE_COORDS
+        global KEYS_TO_PAUSE
+        if 'KEYS_TO_PAUSE' in globals():
+                all_pressed = True
+                for key in KEYS_TO_PAUSE:
+                        if key in ['left', 'middle', 'right']:
+                                if not mouse.is_pressed(key):
+                                        all_pressed = False
+                                        break
+                        else:
+                                if not keyboard.is_pressed(key):
+                                        all_pressed = False
+                                        break
+                if all_pressed == True:
+                        if PAUSE_COORDS == False:
+                                PAUSE_COORDS = True
+                        else:
+                                PAUSE_COORDS = False
+        if PAUSE_COORDS == False:
+                x, y = pyautogui.position()
+                x_display_label.configure(text=x)
+                y_display_label.configure(text=y)
+        x_display_label.after(100, coord_label_update) # Doesn't matter what we attach .after() to
 
-def validate_keyboard(keys, presses=None, interval=None):
-        # Ensure that key is sensible  ## obtained from https://pyautogui.readthedocs.io/en/latest/keyboard.html#keyboard-keys
-        validKeys = ['\t', '\n', '\r', ' ', '!', '"', '#', '$', '%', '&', "'", '(',  
-        ')', '*', '+', ',', '-', '.', '/', '0', '1', '2', '3', '4', '5', '6', '7',
-        '8', '9', ':', ';', '<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`',
-        'a', 'b', 'c', 'd', 'e','f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-        'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~',
-        'accept', 'add', 'alt', 'altleft', 'altright', 'apps', 'backspace',
-        'browserback', 'browserfavorites', 'browserforward', 'browserhome',
-        'browserrefresh', 'browsersearch', 'browserstop', 'capslock', 'clear',
-        'convert', 'ctrl', 'ctrlleft', 'ctrlright', 'decimal', 'del', 'delete',
-        'divide', 'down', 'end', 'enter', 'esc', 'escape', 'execute', 'f1', 'f10',
-        'f11', 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19', 'f2', 'f20',
-        'f21', 'f22', 'f23', 'f24', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9',
-        'final', 'fn', 'hanguel', 'hangul', 'hanja', 'help', 'home', 'insert', 'junja',
-        'kana', 'kanji', 'launchapp1', 'launchapp2', 'launchmail',
-        'launchmediaselect', 'left', 'modechange', 'multiply', 'nexttrack',
-        'nonconvert', 'num0', 'num1', 'num2', 'num3', 'num4', 'num5', 'num6',
-        'num7', 'num8', 'num9', 'numlock', 'pagedown', 'pageup', 'pause', 'pgdn',
-        'pgup', 'playpause', 'prevtrack', 'print', 'printscreen', 'prntscrn',
-        'prtsc', 'prtscr', 'return', 'right', 'scrolllock', 'select', 'separator',
-        'shift', 'shiftleft', 'shiftright', 'sleep', 'space', 'stop', 'subtract', 'tab',
-        'up', 'volumedown', 'volumemute', 'volumeup', 'win', 'winleft', 'winright', 'yen',
-        'command', 'option', 'optionleft', 'optionright']
-        if type(keys) == str:
-                keys = [keys]
-        for key in keys:
-                if key.lower() not in validKeys:
-                        raise Exception((
-                                        'Key value "{}" is not valid. Refer to'
-                                        ' https://pyautogui.readthedocs.io/en/'
-                                        'latest/keyboard.html#keyboard-keys'
-                                        ' for a list of valid key identifiers'
-                                        .format(key)))
+def browse_for_file():
+        global recording_location_entry
+        file_location = filedialog.askopenfilename()
+        recording_location_entry.delete(0, END)
+        recording_location_entry.insert(END, file_location)
+
+def gui_window():
+        # Set variables which are global in scope
+        global key_display_label # This value needs to be updated in keys_to_pause_text
+        global PAUSE_COORDS # This value needs to be global to be reused in the coord_label_update loop
+        PAUSE_COORDS = False
+        global x_display_label # This value needs to be updated in the coord_label_update loop
+        global y_display_label # As above
+        global recording_location_entry # This value needs to be updated by browse_for_file
+        # Set up Tkinter window object
+        window = Tk() # Main GUI object
+        window.title('autoMK') # Sets the title that displays on the top bar
+        window.geometry('{}x{}'.format(600, 400)) # width, height
+        # Create main frame container objects
+        top_frame = Frame(window, width=350, height=200) # This will hold the coord widgets
+        bottom_frame_record = Frame(window, width=350, height=300) # This will hold the recording widgets
+        bottom_frame_playback = Frame(window, width=350, height=300) # This will hold the playback widgets
+        # Layout of main frame containers
+        #window.grid_rowconfigure(1, weight=1)
+        #window.grid_columnconfigure(0, weight=1)
+        top_frame.grid(row=0, sticky="nsew")
+        bottom_frame_record.grid(row=1, sticky="nsew")
+        # Create widgets for top frame
+        pause_text_label = Label(top_frame, text='Key to pause coord:')
+        key_display_label = Label(top_frame, text='', bg='white')
+        key_set_button = Button(top_frame, text='Click to record key', command=key_to_pause_clicked)
+        ##
+        x_label = Label(top_frame, text='X')
+        y_label = Label(top_frame, text='Y')
+        ##
+        x_display_label = Label(top_frame, text='', bg='white')
+        y_display_label = Label(top_frame, text='', bg='white')
+        # Layout of top frame widgets
+        pause_text_label.grid(row=0, column=0)
+        key_display_label.grid(row=0, column=1, rowspan=2)
+        key_set_button.grid(row=0, column=3)
+        ##
+        x_label.grid(row=1, column=0)
+        y_label.grid(row=1, column=2)
+        ##
+        x_display_label.grid(row=2, column=0)
+        y_display_label.grid(row=2, column=2)
+        # Create widgets for recording bottom frame
+        load_text_label = Label(bottom_frame_record, text='Load previous recording:')
+        recording_location_entry = Entry(bottom_frame_record, width=40)
+        recording_location_entry.insert(END, os.getcwd())
+        recording_browse_button = Button(bottom_frame_record, text='Browse', command=browse_for_file)
+        # Layout of bottom frame widgets
+        load_text_label.grid(row=3, column=0)
+        recording_location_entry.grid(row=3, column=1)
+        recording_browse_button.grid(row=3, column=2)
+        # Call functions acting on global values
+        key_set_button.after(100, coord_label_update()) # Makes use of KEYS_TO_PAUSE set by key_to_pause_clicked, and (x/y)_display_label and PAUSE_COORDS
+        # Launch mainloop
+        window.mainloop()
 
 def main():
         '''TBD;
@@ -598,10 +711,11 @@ def main():
 
 if __name__ == '__main__':
         #main()
-        pass
+        gui_window()
+        #pass
 
 
-syntax_file = 'C:\\Bioinformatics\\GitHub\\personal_projects\\mouse_keyboard_automation\\syntax_test.txt'
-time.sleep(5)
-eg = convert_syntax_to_functions(syntax_file)
-play_functions_list(eg)
+#syntax_file = 'C:\\Bioinformatics\\GitHub\\personal_projects\\mouse_keyboard_automation\\syntax_test.txt'
+#time.sleep(5)
+#eg = convert_syntax_to_functions(syntax_file)
+#play_functions_list(eg)
