@@ -7,12 +7,12 @@
 '''
 
 # Import modules
-import pyautogui, keyboard, mouse, queue, ctypes, screeninfo, time, re, os
+import pyautogui, keyboard, mouse, queue, ctypes, screeninfo, time, re, os, pickle
 from tkinter import scrolledtext
 from tkinter import filedialog
-#from tkinter import messagebox
+from tkinter import messagebox
 from tkinter import *
-#from tkinter.ttk import *
+from tkinter.ttk import Combobox
 
 # Hard-coded parameter setup
 WHEEL_DELTA = 120 # Taken from boppreh's _winmouse.py code, used as Windows OS default scroll distance
@@ -70,7 +70,7 @@ def key_press(keys_list, hold_seconds=0):
         for key in reversed(keys_list):
                 key_up(key)
 
-def validate_keyboard(keys, presses=None, interval=None):
+def validate_keyboard(keys, presses=None, interval=None, kill_program=False):
         # Ensure that key is sensible  ## obtained from https://pyautogui.readthedocs.io/en/latest/keyboard.html#keyboard-keys
         validKeys = ['\t', '\n', '\r', ' ', '!', '"', '#', '$', '%', '&', "'", '(',  
         ')', '*', '+', ',', '-', '.', '/', '0', '1', '2', '3', '4', '5', '6', '7',
@@ -98,12 +98,16 @@ def validate_keyboard(keys, presses=None, interval=None):
                 keys = [keys]
         for key in keys:
                 if key.lower() not in validKeys:
-                        raise Exception((
-                                        'Key value "{}" is not valid. Refer to'
-                                        ' https://pyautogui.readthedocs.io/en/'
-                                        'latest/keyboard.html#keyboard-keys'
-                                        ' for a list of valid key identifiers'
-                                        .format(key)))
+                        if kill_program == True:
+                                raise Exception((
+                                                'Key value "{}" is not valid. Refer to'
+                                                ' https://pyautogui.readthedocs.io/en/'
+                                                'latest/keyboard.html#keyboard-keys'
+                                                ' for a list of valid key identifiers'
+                                                .format(key)))
+                        else:
+                                return False
+        return True
 
 ## Mouse-related functions
 class Mouselogging:
@@ -150,7 +154,7 @@ def mouse_scroll(delta): # Delta should be 1.0 or -1.0
         code = MOUSEEVENTF_WHEEL
         user32.mouse_event(code, 0, 0, int(delta * WHEEL_DELTA), 0)
 
-def validate_coord(x_coord, y_coord):
+def validate_coord(x_coord, y_coord, kill_program=False):
         '''This function will ensure that coordinates being provided are accurate
         w/r/t the user's screen setup to ensure that the program operates
         correctly.'''
@@ -177,10 +181,13 @@ def validate_coord(x_coord, y_coord):
                         debuggingText += 'Monitor ' + str(i+1) + '=X:' + str(mCoordRanges[i][0]) + \
                         '->' + str(mCoordRanges[i][1]) + ', Y:' + str(mCoordRanges[i][2]) + '->' + \
                         str(mCoordRanges[i][3]) + '\n'
-                raise Exception((
-                                'The provided coordinate "X: {}, Y: {}" is not'
-                                ' a valid coordinate.\nFor debugging, available'
-                                ' monitor coordinates are listed below.\n{}'.format(x_coord, y_coord, debuggingText)))
+                if kill_program == True:
+                        raise Exception((
+                                        'The provided coordinate "X: {}, Y: {}" is not'
+                                        ' a valid coordinate.\nFor debugging, available'
+                                        ' monitor coordinates are listed below.\n{}'.format(x_coord, y_coord, debuggingText)))
+                else:
+                        return False
 
 ## Log-handling functions
 def merge_logs(log_object1, log_object2):
@@ -282,97 +289,120 @@ def validate_syntax(syntax_file):
                         sl = line.lower().rstrip('\r\n').split(' ')
                         # Validate minimum line length is met to prevent errors when calling sl by index later
                         if (sl[0] == 'mouse' or sl[0] == 'key') and len(sl) < 3:
-                                print('Syntax file has incomplete command "' + ' '.join(sl) + '"')
-                                print('Make sure your file complies with syntax requirements and try again.')
-                                quit()
+                                return 'Syntax file has incomplete command "' + ' '.join(sl) + '".\nMake sure your file complies with syntax requirements and try again.'
                         # Validate first component of line
                         if not (sl[0] == 'mouse' or sl[0] == 'key' or sl[0].startswith('wait')):
-                                print('Syntax file has unrecognised command "' + sl[0] + '"')
-                                print('Make sure your file complies with syntax requirements and try again.')
-                                quit()
+                                return 'Syntax file has unrecognised command "' + sl[0] + '".\nMake sure your file complies with syntax requirements and try again.'
                         # Validate waits
                         if sl[0].startswith('wait'):
                                 try:
                                         float(sl[0][4:])
                                 except:
-                                        print('Wait command has unrecognised integer or foat "' + sl[0] + '"')
-                                        print('Make sure your file complies with syntax requirements and try again.')
-                                        quit()
+                                        return 'Wait command has unrecognised integer or foat "' + sl[0] + '".\nMake sure your file complies with syntax requirements and try again.'
                         # Validate second component of line
                         if sl[0] == 'mouse' and sl[1] not in valid_commands()[1]['mouse']:
-                                print('Syntax file has unrecognised command "' + sl[1] + '" after "mouse"')
-                                print('Make sure your file complies with syntax requirements and try again.')
-                                quit()
+                                return 'Syntax file has unrecognised command "' + sl[1] + '" after "mouse".\nMake sure your file complies with syntax requirements and try again.'
                         elif sl[0] == 'key' and sl[1] not in valid_commands()[1]['key']:
-                                print('Syntax file has unrecognised command "' + sl[1] + '" after "key"')
-                                print('Make sure your file complies with syntax requirements and try again.')
-                                quit()
+                                return 'Syntax file has unrecognised command "' + sl[1] + '" after "key".\nMake sure your file complies with syntax requirements and try again.'
                         # Validate third component of line
                         if sl[0] == 'mouse' and sl[1] in ['click_left', 'click_right', 'move']:
                                 if not coord_format.match(sl[2]):
-                                        print('Syntax file has unrecognised coordinate "' + sl[2] + '" after "' + sl[1] + '"')
-                                        print('Make sure your file complies with syntax requirements and try again.')
-                                        quit()
+                                        return 'Syntax file has unrecognised coordinate "' + sl[2] + '" after "' + sl[1] + '".\nMake sure your file complies with syntax requirements and try again.'
                                 else:
                                         x_coord, y_coord = list(map(int, sl[2].replace('x','').split('y')))
-                                        validate_coord(x_coord, y_coord)
+                                        validate_coord(x_coord, y_coord, kill_program = True)
                         elif sl[0] == 'mouse' and sl[1] in ['drag']:
                                 if not coord_format.match(sl[2]) or not coord_format.match(sl[4]) or not sl[3] == 'to':
-                                        print('Syntax file has unrecognised coordinate "' + ' '.join(sl[2:5]) + '" after "' + sl[1] + '"')
-                                        print('Make sure your file complies with syntax requirements and try again.')
-                                        quit()
+                                        return 'Syntax file has unrecognised coordinate "' + ' '.join(sl[2:5]) + '" after "' + sl[1] + '".\nMake sure your file complies with syntax requirements and try again.'
                                 else:
                                         x_coord, y_coord = list(map(int, sl[2].replace('x','').split('y')))
-                                        validate_coord(x_coord, y_coord)
+                                        validate_coord(x_coord, y_coord, kill_program = True)
                                         x_coord, y_coord = list(map(int, sl[4].replace('x','').split('y')))
-                                        validate_coord(x_coord, y_coord)
+                                        validate_coord(x_coord, y_coord, kill_program = True)
                         elif sl[0] == 'mouse' and sl[1] in ['scroll_down', 'scroll_up']:
                                 valid = validate_positive_integer(sl[2])
                                 if not valid:
-                                        print('Syntax file has unrecognised integer "' + ' '.join(sl[2:5]) + '" after "' + sl[1] + '"')
-                                        print('If unrecognised, it is either negative, equal to 0, or is not an integer (i.e., whole number).')
-                                        print('Make sure your file complies with syntax requirements and try again.')
-                                        quit()
-                        elif sl[0] == 'key' and sl[1] in ['press']:
+                                        return 'Syntax file has unrecognised integer "' + ' '.join(sl[2:5]) + '" after "' + sl[1] + '".\nIf unrecognised, it is either negative, equal to 0, or is not an integer (i.e., whole number).\nMake sure your file complies with syntax requirements and try again.' 
+                        elif sl[0] == 'key':
                                 if duration_format.match(sl[-1]):
                                         keys_for_validation = sl[2:-1]
                                 else:
                                         keys_for_validation = sl[2:]
-                                validate_keyboard(keys_for_validation)
+                                if sl[1] in ['press']: # We don't want to perform this validation step for key_type
+                                        validate_keyboard(keys_for_validation, kill_program=True)
                         # Validate duration command if present & line length
                         if sl[0] == 'mouse' and sl[1] in ['click_left', 'click_right', 'move', 'scroll_up', 'scroll_down']:
                                 if len(sl) > 4:
-                                        print('Syntax file has unrecognised command(s) "' + ' '.join(sl[4:]) + '" after "' + sl[1] + '"')
-                                        print('Make sure your file complies with syntax requirements and try again.')
-                                        quit()
+                                        return 'Syntax file has unrecognised command(s) "' + ' '.join(sl[4:]) + '" after "' + sl[1] + '".\nMake sure your file complies with syntax requirements and try again.'
                                 elif len(sl) == 4:
                                         if not duration_format.match(sl[3]):
-                                                print('Syntax file has unrecognised duration "' + sl[3] + '" after "' + sl[1] + '"')
-                                                print('Make sure your file complies with syntax requirements and try again.')
-                                                quit()
+                                                return 'Syntax file has unrecognised duration "' + sl[3] + '" after "' + sl[1] + '".\nMake sure your file complies with syntax requirements and try again.'
                         elif sl[0] == 'mouse' and sl[1] in ['drag']:
                                 if len(sl) > 6:
-                                        print('Syntax file has unrecognised command(s) "' + ' '.join(sl[6:]) + '" after "' + sl[1] + '"')
-                                        print('Make sure your file complies with syntax requirements and try again.')
-                                        quit()
+                                        return 'Syntax file has unrecognised command(s) "' + ' '.join(sl[6:]) + '" after "' + sl[1] + '".\nMake sure your file complies with syntax requirements and try again.'
                                 elif len(sl) == 6:
                                         if not duration_format.match(sl[5]):
-                                                print('Syntax file has unrecognised duration "' + sl[5] + '" after "' + sl[1] + '"')
-                                                print('Make sure your file complies with syntax requirements and try again.')
-                                                quit()
+                                                return 'Syntax file has unrecognised duration "' + sl[5] + '" after "' + sl[1] + '".\nMake sure your file complies with syntax requirements and try again.'
                         elif sl[0] == 'wait':
                                 if len(sl) > 1:
-                                        print('Syntax file has unrecognised command(s) "' + ' '.join(sl[1:]) + '" after "' + sl[0] + '"')
-                                        print('Make sure your file complies with syntax requirements and try again.')
-                                        quit()
+                                        return 'Syntax file has unrecognised command(s) "' + ' '.join(sl[1:]) + '" after "' + sl[0] + '".\nMake sure your file complies with syntax requirements and try again.'
                                 if not duration_format.match(sl[5]):
-                                        print('Syntax file has unrecognised wait duration "' + sl[0][4:] + '"')
-                                        print('Make sure your file complies with syntax requirements and try again.')
-                                        quit()
+                                        return 'Syntax file has unrecognised wait duration "' + sl[0][4:] + '".\nMake sure your file complies with syntax requirements and try again.'
+        return True
+
+def validate_function_list(function_list):
+        valid_functions = ['time.sleep', 'mouse_move', 'mouse_up', 'mouse_down',
+                           'mouse_scroll', 'key_up', 'key_down', 'key_type']
+        for putative_function in function_list:
+                split_func = putative_function.rstrip(')').split('(') # This will provide a list like ['mouse_move', '[400, 500]'] or ['key_press', '["ctrl", "m"], hold_seconds=7.8']
+                # Handle key_type functions
+                if type(putative_function) == list: # i.e., if this is a key_type function
+                        keys, hold_seconds = split_func[1].split(', hold_seconds=')
+                        if validate_keyboard(eval(keys)) == False: # keys is a string of a list currently; eval makes it a proper list
+                                return False
+                        try:
+                                float(hold_seconds)
+                        except:
+                                return False
+                # Handle all other functions
+                if split_func[0] not in valid_functions:
+                        return False
+                elif split_func[0] == 'time.sleep':
+                        try:
+                                float(split_func[1])
+                        except:
+                                return False
+                elif split_func[0] == 'mouse_move':
+                        if validate_coord(eval(split_func[1])) == False: # split_func[1] is a string of a coord list e.g., '[400, 500']
+                                return False
+                elif split_func[0] == 'mouse_up' or split_func[0] == 'mouse_down':
+                        if split_func[1] not in ['left', 'middle', 'right']:
+                                return False
+                elif split_func[0] == 'mouse_scroll':
+                        if split_func[1] not in ['-1', '1']:
+                                return False
+                elif split_func[0] == 'key_up' or split_func[0] == 'key_down':
+                        if validate_keyboard(split_func[1]) == False:
+                                return False
+        return True
+
+def validate_pickle(pickle_file):
+        # Validation 1: Pickle module recognises file
+        try:
+                pickle_contents = pickle.load(open(pickle_file, "rb"))
+        except:
+                return ['Error: mk_pkl file incorrectly formatted', 'Recording file is not recognised as a true .mk_pkl formatted file.', None]
+        # Validation 2: Pickle contents are a function list
+        if type(pickle_contents) != list:
+                return ['Error: mk_pkl file is not a recording pickle', 'Recording file is a pickle formatted file but was not created by autoMK.', None]
+        validation_result = validate_function_list(pickle_contents)
+        if validation_result == False:
+                return ['Error: mk_pkl file is not a recording pickle', 'Recording file is a pickle formatted file but was not created by autoMK or has been corrupted.', None]
+        else:
+                return ['Success!', 'Recording file was loaded and validated successfully!', pickle_contents]
 
 def convert_syntax_to_functions(syntax_file):
         duration_format = re.compile(r'duration\d{1,10}(\.\d{1,10})?$')
-        validate_syntax(syntax_file)
         functions_list = []
         most_recent_mouse_coord = None, None
         with open(syntax_file, 'r') as file_in:
@@ -631,6 +661,41 @@ def browse_for_file():
         recording_location_entry.delete(0, END)
         recording_location_entry.insert(END, file_location)
 
+def validate_recording_file():
+        global recording_location_entry
+        global FUNCTION_LIST_FOR_PLAYBACK
+        recording_file = recording_location_entry.get()
+        # Validate file exists
+        if not os.path.isfile(recording_file):
+                messagebox.showinfo('Error: File doesn\'t exist', 'Recording file could not be located at the specified location.')
+                return None
+        # Validate file type
+        ACCEPTED_FILE_TYPES = ['mk_pkl', 'mk_syn']
+        if '.' not in recording_file:
+                messagebox.showinfo('Error: File has no extension', 'Recording file does not have a file extension. It should end with .mk_pkl or .mk_syn.')
+                return None
+        recording_file_extension = recording_file.rsplit('.', maxsplit=1)[1]
+        if recording_file_extension.lower() not in ACCEPTED_FILE_TYPES:
+                messagebox.showinfo('Error: File extension unrecognised', 'Recording file has unknown file extension. It should end with .mk_pkl or .mk_syn.')
+                return None
+        # Validate .mk_syn files
+        file_result = validate_syntax(recording_file)
+        if type(file_result) == str:
+                messagebox.showinfo('Error: mk_syn file incorrectly formatted', file_result)
+                return None
+        else:
+                messagebox.showinfo('Success!', 'Recording file was loaded and validated successfully!')
+                FUNCTION_LIST_FOR_PLAYBACK = convert_syntax_to_functions(recording_file)
+                return None
+        # Validate .mk_pkl files
+        message_title, message_body, pickle_contents = validate_pickle(recording_file)
+        messagebox.showinfo(message_title, message_body)
+        if message_title != 'Success!':
+                return None
+        else:
+                FUNCTION_LIST_FOR_PLAYBACK = pickle_contents
+                return None
+
 def gui_window():
         # Set variables which are global in scope
         global key_display_label # This value needs to be updated in keys_to_pause_text
@@ -677,10 +742,26 @@ def gui_window():
         recording_location_entry = Entry(bottom_frame_record, width=40)
         recording_location_entry.insert(END, os.getcwd())
         recording_browse_button = Button(bottom_frame_record, text='Browse', command=browse_for_file)
+        recording_validate_button = Button(bottom_frame_record, text='Load', command=validate_recording_file)
+        ##
+        generate_text_label = Label(bottom_frame_record, text='Generate new recording:')
+        options_combo = Combobox(bottom_frame_record)
+        options_combo['values'] = ('mouse', 'keyboard', 'mouse+keyboard')
+        options_combo.current(2) # Sets the "default" value to mouse+keyboard, 0-indexed according to dict associated with widget
+        ##
+        record_pause_text_label = Label(bottom_frame_record, text='Key to start/stop recording:')
+        record_key_display_label = Label(bottom_frame_record, text='', bg='white')
+        record_key_set_button = Button(bottom_frame_record, text='Click to record key', command=key_to_record_clicked)
         # Layout of bottom frame widgets
         load_text_label.grid(row=3, column=0)
         recording_location_entry.grid(row=3, column=1)
         recording_browse_button.grid(row=3, column=2)
+        recording_validate_button.grid(row=3, column=3)
+        ##
+        generate_text_label.grid(row=4, column=0)
+        options_combo.grid(row=4, column=1)
+        ##
+        record_pause_text_label.grid(row=5, column=0)
         # Call functions acting on global values
         key_set_button.after(100, coord_label_update()) # Makes use of KEYS_TO_PAUSE set by key_to_pause_clicked, and (x/y)_display_label and PAUSE_COORDS
         # Launch mainloop
