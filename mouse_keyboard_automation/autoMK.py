@@ -13,6 +13,8 @@ from tkinter import filedialog
 from tkinter import messagebox
 from tkinter import *
 from tkinter.ttk import Combobox
+from functools import partial
+from datetime import date
 
 # Hard-coded parameter setup
 WHEEL_DELTA = 120 # Taken from boppreh's _winmouse.py code, used as Windows OS default scroll distance
@@ -264,6 +266,16 @@ def convert_log_to_functions(log_list, unpress_keys=True):
                                 functions_list.append('key_up("' + key + '")')
         return functions_list
 
+def validate_positive_integer(number):
+        try:
+                assert '.' not in str(number)
+                int(number)
+        except:
+                return False
+        if int(number) <= 0:
+                return False
+        return True
+
 def validate_syntax(syntax_file):
         def valid_commands():
                 main_commands = ['mouse', 'key', 'wait']
@@ -271,15 +283,6 @@ def validate_syntax(syntax_file):
                                              'scroll_up', 'drag', 'move'],
                                   'key': ['press', 'type']}
                 return main_commands, second_commands
-        def validate_positive_integer(number):
-                try:
-                        assert '.' not in str(number)
-                        int(number)
-                except:
-                        return False
-                if int(number) <= 0:
-                        return False
-                return True
         coord_format = re.compile(r'x\d{1,5}y\d{1,5}')
         duration_format = re.compile(r'duration\d{1,10}(\.\d{1,10})?$')
         with open(syntax_file, 'r') as file_in:
@@ -571,7 +574,7 @@ def play_functions_list(functions_list):
                                 key_type(function[1], typing_seconds=function[2])
 
 ## Functions related to user interfacing
-def key_to_pause_clicked(): # Top-frame; key_set_button
+def key_to_pause_clicked(label_to_update):
         # Start logging keyboard and mouse actions
         keylog = Keylogging()
         mouselog = Mouselogging()
@@ -603,47 +606,55 @@ def key_to_pause_clicked(): # Top-frame; key_set_button
                                                 exit_time = click.time
                                         break
         # Process logs to derive our combination
-        global KEYS_TO_PAUSE
-        KEYS_TO_PAUSE = set()
+        keys_to_pause = set()
         for key in keylog.current_log:
                 if key.event_type == 'down' and key.time < exit_time:
-                        KEYS_TO_PAUSE.add(key.name)
+                        keys_to_pause.add(key.name)
         for click in mouselog.current_log:
                         if type(click) == mouse._mouse_event.ButtonEvent:
                                 if click.event_type == 'down' and click.time < exit_time:
-                                        KEYS_TO_PAUSE.add(click.button)
+                                        keys_to_pause.add(click.button)
         # Call function to present text to user
-        keys_to_pause_text(KEYS_TO_PAUSE)
+        keys_to_pause_text(keys_to_pause, label_to_update)
         
-def keys_to_pause_text(KEYS_TO_PAUSE): # Top-frame; key_set_button
-        # Make KEYS_TO_PAUSE presentable as a string to the user
+def keys_to_pause_text(keys_to_pause, label_to_update):
+        # Make keys_to_pause presentable as a string to the user
         keys_to_pause_list = []
-        if 'ctrl' in KEYS_TO_PAUSE:
+        if 'ctrl' in keys_to_pause:
                 keys_to_pause_list.append('ctrl') # Bring modifier keys to the front
-        if 'shift' in KEYS_TO_PAUSE:
+        if 'shift' in keys_to_pause:
                 keys_to_pause_list.append('shift')
-        if 'alt' in KEYS_TO_PAUSE:
+        if 'alt' in keys_to_pause:
                 keys_to_pause_list.append('alt')
-        for key in KEYS_TO_PAUSE:
+        for key in keys_to_pause:
                 if key not in ['ctrl', 'shift', 'alt']:
                         keys_to_pause_list.append(key)
         keys_to_pause_as_string = ' '.join(keys_to_pause_list)
-        key_display_label.configure(text=keys_to_pause_as_string) # This value was defined as a global in key_to_pause_clicked
+        label_to_update.configure(text=keys_to_pause_as_string) # This value was defined as a global in key_to_pause_clicked
 
-def coord_label_update(): # Top-frame; runs globally, connects to x_display_label, y_display_label 
-        global PAUSE_COORDS
-        global KEYS_TO_PAUSE
-        if 'KEYS_TO_PAUSE' in globals():
-                all_pressed = True
-                for key in KEYS_TO_PAUSE:
-                        if key in ['left', 'middle', 'right']:
-                                if not mouse.is_pressed(key):
-                                        all_pressed = False
-                                        break
-                        else:
-                                if not keyboard.is_pressed(key):
-                                        all_pressed = False
-                                        break
+def derive_keys_from_label(label_to_get_string_from): 
+        keys_to_pause_as_string = label_to_get_string_from['text']
+        keys_to_pause = keys_to_pause_as_string.split(' ')
+        return keys_to_pause
+
+def check_if_keys_pressed(keys_list):
+        all_pressed = True
+        for key in keys_list:
+                if key in ['left', 'middle', 'right']:
+                        if not mouse.is_pressed(key):
+                                all_pressed = False
+                                break
+                else:
+                        if not keyboard.is_pressed(key):
+                                all_pressed = False
+                                break
+        return all_pressed
+
+def coord_label_update(label_to_get_string_from): # Top-frame; runs globally, connects to x_display_label, y_display_label 
+        global PAUSE_COORDS # Making this global lets us reuse it on reiterations
+        keys_to_pause = derive_keys_from_label(label_to_get_string_from)
+        if keys_to_pause != ['']:
+                all_pressed = check_if_keys_pressed(keys_to_pause)
                 if all_pressed == True:
                         if PAUSE_COORDS == False:
                                 PAUSE_COORDS = True
@@ -653,18 +664,91 @@ def coord_label_update(): # Top-frame; runs globally, connects to x_display_labe
                 x, y = pyautogui.position()
                 x_display_label.configure(text=x)
                 y_display_label.configure(text=y)
-        x_display_label.after(100, coord_label_update) # Doesn't matter what we attach .after() to
+        x_display_label.after(100, coord_label_update, label_to_get_string_from) # Doesn't matter what we attach .after() to
 
-def browse_for_file():
-        global recording_location_entry
+def recording_start_stop(record_key_display_label, record_check_button, options_combo):
+        global CURRENTLY_RECORDING
+        global MLOG
+        global KLOG
+        global FLOG
+        keys_to_record = derive_keys_from_label(record_key_display_label)
+        stop_recording = False
+        start_recording = False
+        if record_check_button.state.get() == True or CURRENTLY_RECORDING == True: # This or system prevents record_check_button checking from preventing us stopping a current recording session
+                if keys_to_record != ['']:
+                        all_pressed = check_if_keys_pressed(keys_to_record)
+                        if all_pressed == True:
+                                if CURRENTLY_RECORDING == True:
+                                        stop_recording = True
+                                else:
+                                        CURRENTLY_RECORDING = True
+                                        start_recording = True
+        if start_recording == True:
+                recording_option = options_combo.get()
+                if recording_option == 'mouse' or recording_option == 'mouse+keyboard':
+                        MLOG = Mouselogging()
+                        MLOG.start_logging()
+                if recording_option == 'keyboard' or recording_option == 'mouse+keyboard':
+                        KLOG = Keylogging()
+                        KLOG.start_logging()
+        elif stop_recording == True:
+                # Gather our logs
+                if 'MLOG' in globals(): # Could check the combobox, but it's possible that value has changed since we started recording
+                        MLOG.stop_logging()
+                        if 'KLOG' not in globals():
+                                CLOG = MLOG
+                if 'KLOG' in globals():
+                        KLOG.stop_logging()
+                        if 'MLOG' not in globals():
+                                CLOG = KLOG
+                if 'MLOG' in globals() and 'KLOG' in globals():
+                        CLOG = merge_logs(KLOG, MLOG) # CLOG stands for combined log
+                # Convert logs to functions
+                FLOG = convert_log_to_functions(CLOG) # FLOG now stands for functions log
+        record_key_display_label.after(100, recording_start_stop, record_key_display_label, record_check_button, options_combo)
+
+def playback_start_stop(playback_key_display_label, playback_check_button, playback_speed_entry):
+        global FLOG
+        # Validate playback_speed_entry value
+        integer_validation_result = validate_positive_integer(playback_speed_entry.get())
+        if integer_validation_result == False:
+                messagebox.showinfo('Error: Playback speed is flawed', 'Playback speed must be a positive integer.')
+                return None
+        # Main playback_start_stop function
+        global CURRENTLY_PLAYING
+        keys_to_playback = derive_keys_from_label(playback_key_display_label)
+        stop_playback = False
+        start_playback = False
+        if playback_check_button.state.get() == True or CURRENTLY_PLAYING == True: # This or system prevents playback_check_button checking from preventing us stopping a current playback session
+                if keys_to_playback != ['']:
+                        all_pressed = check_if_keys_pressed(keys_to_playback)
+                        if all_pressed == True:
+                                if CURRENTLY_PLAYING == True:
+                                        stop_playback = True
+                                else:
+                                        CURRENTLY_PLAYING = True
+                                        start_playback = True
+        if start_playback == True:
+                play_functions_list(FLOG)
+        elif stop_playback == True:
+                pass
+        playback_key_display_label.after(100, playback_start_stop, playback_key_display_label, playback_check_button, playback_speed_entry)
+
+def browse_for_file(entry_to_write_to):
         file_location = filedialog.askopenfilename()
-        recording_location_entry.delete(0, END)
-        recording_location_entry.insert(END, file_location)
+        entry_to_write_to.delete(0, END)
+        entry_to_write_to.insert(END, file_location)
 
-def validate_recording_file():
-        global recording_location_entry
-        global FUNCTION_LIST_FOR_PLAYBACK
-        recording_file = recording_location_entry.get()
+def save_as_file(entry_to_write_to):
+        file_location = filedialog.asksaveasfilename(defaultextension='.mk_pkl', initialdir=os.getcwd(), filetypes=[('autoMK pkl', '.mk_pkl')])
+        if file_location is None: # asksaveasfile returns `None` if dialog closed with "cancel".
+                return None
+        entry_to_write_to.delete(0, END)
+        entry_to_write_to.insert(END, file_location)
+
+def validate_recording_file(entry_to_get_string_from):
+        global FLOG
+        recording_file = entry_to_get_string_from.get()
         # Validate file exists
         if not os.path.isfile(recording_file):
                 messagebox.showinfo('Error: File doesn\'t exist', 'Recording file could not be located at the specified location.')
@@ -685,7 +769,7 @@ def validate_recording_file():
                 return None
         else:
                 messagebox.showinfo('Success!', 'Recording file was loaded and validated successfully!')
-                FUNCTION_LIST_FOR_PLAYBACK = convert_syntax_to_functions(recording_file)
+                FLOG = convert_syntax_to_functions(recording_file) # FLOG stands for function log; value made by this function or recording_start_stop()
                 return None
         # Validate .mk_pkl files
         message_title, message_body, pickle_contents = validate_pickle(recording_file)
@@ -693,21 +777,45 @@ def validate_recording_file():
         if message_title != 'Success!':
                 return None
         else:
-                FUNCTION_LIST_FOR_PLAYBACK = pickle_contents
+                FLOG = pickle_contents
                 return None
+
+def validate_save_file(entry_to_get_string_from):
+        file_output_name = entry_to_get_string_from.get()
+        # Validate file exists
+        if os.path.isfile(file_output_name):
+                messagebox.showinfo('Error: File already exists', 'Recording file cannot overwrite existing files.')
+                return None
+        # Validate file type
+        ACCEPTED_FILE_TYPES = ['mk_pkl']
+        if '.' not in file_output_name:
+                messagebox.showinfo('Error: File has no extension', 'Recording file does not have a file extension. It should end with .mk_pkl or .mk_syn.')
+                return None
+        recording_file_extension = file_output_name.rsplit('.', maxsplit=1)[1]
+        if recording_file_extension.lower() not in ACCEPTED_FILE_TYPES:
+                messagebox.showinfo('Error: File extension unrecognised', 'Recording file has unknown file extension. It should end with .mk_pkl or .mk_syn.')
+                return None
+        # Let user know it's all good!
+        messagebox.showinfo('Success!', 'Recording file was saved successfully!')
+        global SAVED_FILE_NAME
+        SAVED_FILE_NAME = file_output_name
 
 def gui_window():
         # Set variables which are global in scope
-        global key_display_label # This value needs to be updated in keys_to_pause_text
         global PAUSE_COORDS # This value needs to be global to be reused in the coord_label_update loop
-        PAUSE_COORDS = False
+        PAUSE_COORDS = False # Note: it is possible to remove this as a global
         global x_display_label # This value needs to be updated in the coord_label_update loop
         global y_display_label # As above
-        global recording_location_entry # This value needs to be updated by browse_for_file
+        global CURRENTLY_RECORDING # This value needs to be updated by recording_start_stop()
+        CURRENTLY_RECORDING = False # As above
+        global FLOG # This value needs to be updated by recording_start_stop() or validate_recording_file()
+        FLOG = None # FLOG being None or a list will be the switch for replacing bottom frames
+        global CURRENTLY_PLAYING # This value needs to be updated by playback_start_stop()
+        CURRENTLY_PLAYING = False # As above
         # Set up Tkinter window object
         window = Tk() # Main GUI object
         window.title('autoMK') # Sets the title that displays on the top bar
-        window.geometry('{}x{}'.format(600, 400)) # width, height
+        window.geometry('{}x{}'.format(900, 400)) # width, height
         # Create main frame container objects
         top_frame = Frame(window, width=350, height=200) # This will hold the coord widgets
         bottom_frame_record = Frame(window, width=350, height=300) # This will hold the recording widgets
@@ -717,10 +825,11 @@ def gui_window():
         #window.grid_columnconfigure(0, weight=1)
         top_frame.grid(row=0, sticky="nsew")
         bottom_frame_record.grid(row=1, sticky="nsew")
+        bottom_frame_playback.grid(row=2, sticky="nsew") # rewrite to overlap above frame soon
         # Create widgets for top frame
         pause_text_label = Label(top_frame, text='Key to pause coord:')
-        key_display_label = Label(top_frame, text='', bg='white')
-        key_set_button = Button(top_frame, text='Click to record key', command=key_to_pause_clicked)
+        key_display_label = Label(top_frame, text='', bg='white') # This label has the keys_to_pause value set as its ['text'] attribute; can be retrieved with derive_keys_from_label()
+        key_set_button = Button(top_frame, text='Click to record key', command=partial(key_to_pause_clicked, key_display_label)) # Partial lets us pass arguments in command=
         ##
         x_label = Label(top_frame, text='X')
         y_label = Label(top_frame, text='Y')
@@ -741,8 +850,8 @@ def gui_window():
         load_text_label = Label(bottom_frame_record, text='Load previous recording:')
         recording_location_entry = Entry(bottom_frame_record, width=40)
         recording_location_entry.insert(END, os.getcwd())
-        recording_browse_button = Button(bottom_frame_record, text='Browse', command=browse_for_file)
-        recording_validate_button = Button(bottom_frame_record, text='Load', command=validate_recording_file)
+        recording_browse_button = Button(bottom_frame_record, text='Browse', command=partial(browse_for_file, recording_location_entry))
+        recording_validate_button = Button(bottom_frame_record, text='Load', command=partial(validate_recording_file, recording_location_entry))
         ##
         generate_text_label = Label(bottom_frame_record, text='Generate new recording:')
         options_combo = Combobox(bottom_frame_record)
@@ -751,7 +860,10 @@ def gui_window():
         ##
         record_pause_text_label = Label(bottom_frame_record, text='Key to start/stop recording:')
         record_key_display_label = Label(bottom_frame_record, text='', bg='white')
-        record_key_set_button = Button(bottom_frame_record, text='Click to record key', command=key_to_record_clicked)
+        record_key_set_button = Button(bottom_frame_record, text='Click to record key', command=partial(key_to_pause_clicked, record_key_display_label))
+        record_check_button_state = BooleanVar()
+        record_check_button = Checkbutton(bottom_frame_record, text='Activate button', var=record_check_button_state)
+        record_check_button.state = record_check_button_state
         # Layout of bottom frame widgets
         load_text_label.grid(row=3, column=0)
         recording_location_entry.grid(row=3, column=1)
@@ -762,8 +874,45 @@ def gui_window():
         options_combo.grid(row=4, column=1)
         ##
         record_pause_text_label.grid(row=5, column=0)
-        # Call functions acting on global values
-        key_set_button.after(100, coord_label_update()) # Makes use of KEYS_TO_PAUSE set by key_to_pause_clicked, and (x/y)_display_label and PAUSE_COORDS
+        record_key_display_label.grid(row=5, column=1)
+        record_key_set_button.grid(row=5, column=2)
+        record_check_button.grid(row=5, column=3)
+        # Create widgets for playback bottom frame
+        playback_text_label = Label(bottom_frame_playback, text='Key to start/stop playback:')
+        playback_key_display_label = Label(bottom_frame_playback, text='', bg='white')
+        playback_key_set_button = Button(bottom_frame_playback, text='Click to record key', command=partial(key_to_pause_clicked, playback_key_display_label))
+        playback_check_button_state = BooleanVar()
+        playback_check_button = Checkbutton(bottom_frame_playback, text='Activate button', var=playback_check_button_state)
+        playback_check_button.state = playback_check_button_state
+        ##
+        playback_speed_label_prefix = Label(bottom_frame_playback, text='Playback speed modifier:')
+        playback_speed_entry = Entry(bottom_frame_playback, width=3)
+        playback_speed_entry.insert(END, 1)
+        playback_speed_label_suffix = Label(bottom_frame_playback, text='x')
+        ##
+        save_recording_label = Label(bottom_frame_playback, text='Save recording:')
+        save_recording_location_entry = Entry(bottom_frame_playback, width=40)
+        save_recording_location_entry.insert(END, os.path.join(os.getcwd(), 'autoMK_' + '-'.join([str(date.today().day), str(date.today().month), str(date.today().year)]) + '.mk_pkl'))
+        save_recording_browse_button = Button(bottom_frame_playback, text='Browse', command=partial(save_as_file, save_recording_location_entry))
+        save_recording_validate_button = Button(bottom_frame_playback, text='Save', command=partial(validate_save_file, save_recording_location_entry))
+        # Layout of playback bottom frame widgets
+        playback_text_label.grid(row=6, column=0) # These will be rewritten to overlap the recording bottom frame soon
+        playback_key_display_label.grid(row=6, column=1)
+        playback_key_set_button.grid(row=6, column=2)
+        playback_check_button.grid(row=6, column=3)
+        ##
+        playback_speed_label_prefix.grid(row=7, column=0)
+        playback_speed_entry.grid(row=7, column=1)
+        playback_speed_label_suffix.grid(row=7, column=2)
+        ##
+        save_recording_label.grid(row=8, column=0)
+        save_recording_location_entry.grid(row=8, column=1)
+        save_recording_browse_button.grid(row=8, column=2)
+        save_recording_validate_button.grid(row=8, column=3)
+        # Call ongoing functions acting on global values
+        key_display_label.after(100, coord_label_update, key_display_label) # Makes use of (x/y)_display_label and PAUSE_COORDS
+        record_key_display_label.after(100, recording_start_stop, record_key_display_label, record_check_button, options_combo) ## TBD
+        playback_key_display_label.after(100, playback_start_stop, playback_key_display_label, playback_check_button, playback_speed_entry)
         # Launch mainloop
         window.mainloop()
 
