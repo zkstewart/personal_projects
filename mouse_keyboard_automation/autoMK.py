@@ -573,6 +573,18 @@ def play_functions_list(functions_list):
                         if function[0] == 'key_type':
                                 key_type(function[1], typing_seconds=function[2])
 
+def play_function(functions_list):
+        function = functions_list[0]
+        wait = functions_list[0]
+        if type(function) == str:
+                eval(function)
+        elif type(function) == list:
+                if function[0] == 'key_type':
+                        key_type(function[1], typing_seconds=function[2])
+        functions_list.append(functions_list.pop(0)) # Doing this rotates the first entry to the last position
+        functions_list.append(functions_list.pop(0))
+        return wait
+
 ## Functions related to user interfacing
 def key_to_pause_clicked(label_to_update):
         # Start logging keyboard and mouse actions
@@ -709,13 +721,13 @@ def recording_start_stop(record_key_display_label, record_check_button, options_
 
 def playback_start_stop(playback_key_display_label, playback_check_button, playback_speed_entry):
         global FLOG
+        global CURRENTLY_PLAYING
         # Validate playback_speed_entry value
         integer_validation_result = validate_positive_integer(playback_speed_entry.get())
         if integer_validation_result == False:
                 messagebox.showinfo('Error: Playback speed is flawed', 'Playback speed must be a positive integer.')
                 return None
         # Main playback_start_stop function
-        global CURRENTLY_PLAYING
         keys_to_playback = derive_keys_from_label(playback_key_display_label)
         stop_playback = False
         start_playback = False
@@ -728,10 +740,10 @@ def playback_start_stop(playback_key_display_label, playback_check_button, playb
                                 else:
                                         CURRENTLY_PLAYING = True
                                         start_playback = True
-        if start_playback == True:
-                play_functions_list(FLOG)
+        if CURRENTLY_PLAYING == True:
+                wait_time = play_function(FLOG)
         elif stop_playback == True:
-                pass
+                CURRENTLY_PLAYING = False
         playback_key_display_label.after(100, playback_start_stop, playback_key_display_label, playback_check_button, playback_speed_entry)
 
 def browse_for_file(entry_to_write_to):
@@ -909,10 +921,12 @@ def gui_window():
         save_recording_location_entry.grid(row=8, column=1)
         save_recording_browse_button.grid(row=8, column=2)
         save_recording_validate_button.grid(row=8, column=3)
+        # Create label containers for ongoing functions
+        playback_container_label = Label(window, text='')
+        playback_container_label.after(100, playback_start_stop, playback_key_display_label, playback_check_button, playback_speed_entry)
         # Call ongoing functions acting on global values
         key_display_label.after(100, coord_label_update, key_display_label) # Makes use of (x/y)_display_label and PAUSE_COORDS
         record_key_display_label.after(100, recording_start_stop, record_key_display_label, record_check_button, options_combo) ## TBD
-        playback_key_display_label.after(100, playback_start_stop, playback_key_display_label, playback_check_button, playback_speed_entry)
         # Launch mainloop
         window.mainloop()
 
