@@ -61,9 +61,14 @@ def key_down(key, pause_seconds=0):
 def key_up(key, pause_seconds=0):
         pyautogui.keyUp(key, pause=pause_seconds)
 
-def key_type(keys_string, typing_seconds=1, pause_seconds=0):
+def key_type(keys_string, typing_seconds=1, pause_seconds=0, container_label=None):
         key_press_interval = typing_seconds / len(keys_string)
-        pyautogui.typewrite(keys_string, interval=key_press_interval, pause=pause_seconds)
+        try:
+                pyautogui.typewrite(keys_string, interval=key_press_interval, pause=pause_seconds)
+        except:
+                messagebox.showinfo('Pyautogui failsafe triggered', 'Pyautogui recognised a failsafe trigger by moving mouse to the upper left corner of screen.')
+                if container_label != None:
+                        container_label.currently_playing = False
 
 def key_press(keys_list, hold_seconds=0):
         for key in keys_list:
@@ -287,11 +292,21 @@ def validate_syntax(syntax_file):
                 return main_commands, second_commands
         coord_format = re.compile(r'x\d{1,5}y\d{1,5}')
         duration_format = re.compile(r'duration\d{1,10}(\.\d{1,10})?$')
+        first_line = True
         with open(syntax_file, 'r') as file_in:
                 for line in file_in: # File is parsed line-by-line, with each line being a function
-                        if line.startswith('#'): # This allows lines to be commented out for testing purposes; very helpful!
-                                   continue
                         sl = line.lower().rstrip('\r\n').split(' ')
+                        # Validate first line playback key
+                        if first_line == True:
+                                if not line.startswith('#keys '):
+                                        return 'Syntax file has an incorrectly formatted first line.\nMake sure your file complies with syntax requirements and try again.'
+                                keys_for_validation = sl[2:]
+                                validate_keyboard(keys_for_validation, kill_program=True)
+                                first_line = False
+                                continue
+                        # Allow for lines to be commented out
+                        if line.startswith('#'):
+                                   continue
                         # Validate minimum line length is met to prevent errors when calling sl by index later
                         if (sl[0] == 'mouse' or sl[0] == 'key') and len(sl) < 3:
                                 return 'Syntax file has incomplete command "' + ' '.join(sl) + '".\nMake sure your file complies with syntax requirements and try again.'
@@ -378,7 +393,8 @@ def validate_function_list(function_list):
                         except:
                                 return False
                 elif split_func[0] == 'mouse_move':
-                        if validate_coord(eval(split_func[1])) == False: # split_func[1] is a string of a coord list e.g., '[400, 500']
+                        x_coord, y_coord = eval(split_func[1])
+                        if validate_coord(x_coord, y_coord) == False: # split_func[1] is a string of a coord list e.g., '[400, 500']
                                 return False
                 elif split_func[0] == 'mouse_up' or split_func[0] == 'mouse_down':
                         if split_func[1] not in ['left', 'middle', 'right']:
@@ -387,34 +403,39 @@ def validate_function_list(function_list):
                         if split_func[1] not in ['-1', '1']:
                                 return False
                 elif split_func[0] == 'key_up' or split_func[0] == 'key_down':
-                        if validate_keyboard(split_func[1]) == False:
+                        if validate_keyboard(split_func[1].strip('\'"')) == False:
                                 return False
         return True
 
 def validate_pickle(pickle_file):
         # Validation 1: Pickle module recognises file
         try:
-                pickle_contents = pickle.load(open(pickle_file, "rb"))
+                pickle_FLOG, pickle_keys = pickle.load(open(pickle_file, "rb"))
         except:
-                return ['Error: mk_pkl file incorrectly formatted', 'Recording file is not recognised as a true .mk_pkl formatted file.', None]
+                return ['Error: mk_pkl file incorrectly formatted', 'Recording file is not recognised as a true .mk_pkl formatted file.', None, None]
         # Validation 2: Pickle contents are a function list
-        if type(pickle_contents) != list:
-                return ['Error: mk_pkl file is not a recording pickle', 'Recording file is a pickle formatted file but was not created by autoMK.', None]
-        validation_result = validate_function_list(pickle_contents)
+        if type(pickle_FLOG) != list or type(pickle_keys) != str:
+                return ['Error: mk_pkl file is not a recording pickle', 'Recording file is a pickle formatted file but was not created by autoMK.', None, None]
+        validation_result = validate_function_list(pickle_FLOG)
         if validation_result == False:
-                return ['Error: mk_pkl file is not a recording pickle', 'Recording file is a pickle formatted file but was not created by autoMK or has been corrupted.', None]
+                return ['Error: mk_pkl file is not a recording pickle', 'Recording file is a pickle formatted file but was not created by autoMK or has been corrupted.', None, None]
         else:
-                return ['Success!', 'Recording file was loaded and validated successfully!', pickle_contents]
+                return ['Success!', 'Recording file was loaded and validated successfully!', pickle_FLOG, pickle_keys]
 
 def convert_syntax_to_functions(syntax_file):
         duration_format = re.compile(r'duration\d{1,10}(\.\d{1,10})?$')
         functions_list = []
         most_recent_mouse_coord = None, None
+        first_line = True
         with open(syntax_file, 'r') as file_in:
                 for line in file_in: # File is parsed line-by-line, with each line being a function
+                        sl = line.lower().rstrip('\r\n').split(' ')
+                        if first_line == True:
+                                keys_to_pause_as_string = line[6:].rstrip('\r\n') # This trims off the '#keys ' start
+                                first_line = False
+                                continue
                         if line.startswith('#'): # This allows lines to be commented out for testing purposes; very helpful!
                                    continue
-                        sl = line.lower().rstrip('\r\n').split(' ')
                         # Mouse functions
                         if sl[0] == 'mouse':
                                 if sl[1] in ['click_left', 'click_right', 'move']:
@@ -486,7 +507,7 @@ def convert_syntax_to_functions(syntax_file):
                                 duration = float(sl[0][4:])
                                 functions_list.append('time.sleep(' + str(duration) + ')')
                                 functions_list.append('time.sleep(0)') # FLOG_LOOPING even needs time.sleep to be buffered with time.sleep... bit silly but oh well
-        return functions_list
+        return functions_list, keys_to_pause_as_string
 
 def mouse_move_tween_to_functions(x_coord1, y_coord1, x_coord2, y_coord2, duration_seconds=1, steps_per_second=10):
         try:
@@ -504,6 +525,7 @@ def mouse_drag_syntax_to_functions(x_coord1, y_coord1, x_coord2, y_coord2, durat
         except ZeroDivisionError:
                 functions_list.append(['mouse_move([' + str(x_coord2) + ', ' + str(y_coord2) + '])'])
         functions_list.append('mouse_up("left")')
+        functions_list.append('time.sleep(0)')
         return functions_list
 
 def coordinate_tween(x_coord1, y_coord1, x_coord2, y_coord2, duration_seconds, steps_per_second):
@@ -646,6 +668,11 @@ def derive_text_from_label(label_to_get_string_from):
         label_text = label_to_get_string_from['text']
         return label_text
 
+def derive_text_from_label_continuous(label_to_get_string_from, label_to_write_string_to):
+        label_text = label_to_get_string_from['text']
+        label_to_write_string_to['text'] = label_text
+        label_to_write_string_to.after(1000, derive_text_from_label_continuous, label_to_get_string_from, label_to_write_string_to)
+
 def update_label_text(label_to_write_text_to, text):
         label_to_write_text_to['text'] = text
 
@@ -678,7 +705,7 @@ def coord_label_update(label_to_get_string_from): # Top-frame; runs globally, co
                 y_display_label.configure(text=y)
         x_display_label.after(100, coord_label_update, label_to_get_string_from) # Doesn't matter what we attach .after() to
 
-def recording_start_stop(record_key_display_label, record_check_button, options_combo):
+def recording_start_stop(record_key_display_label, record_check_button, options_combo, recording_frame, record_check_button_state):
         global CURRENTLY_RECORDING
         global MLOG
         global KLOG
@@ -718,7 +745,9 @@ def recording_start_stop(record_key_display_label, record_check_button, options_
                 # Convert logs to functions
                 FLOG = convert_log_to_functions(CLOG) # FLOG now stands for functions log
                 CURRENTLY_RECORDING = False
-        record_key_display_label.after(100, recording_start_stop, record_key_display_label, record_check_button, options_combo)
+                record_check_button_state.set(False) # We need to set this check button's state to False to prevent us activating a new recording session when we click the playback button
+                recording_frame.tkraise()
+        record_key_display_label.after(100, recording_start_stop, record_key_display_label, record_check_button, options_combo, recording_frame, record_check_button_state)
 
 def playback_start_stop(playback_container_label, playback_key_display_label, playback_check_button, playback_speed_entry):
         global FLOG
@@ -726,6 +755,9 @@ def playback_start_stop(playback_container_label, playback_key_display_label, pl
         integer_validation_result = validate_positive_integer(playback_speed_entry.get())
         if integer_validation_result == False:
                 messagebox.showinfo('Error: Playback speed is flawed', 'Playback speed must be a positive integer.')
+                playback_key_display_label.after(100, playback_start_stop, playback_container_label, playback_key_display_label, playback_check_button, playback_speed_entry)
+                playback_speed_entry.delete(0, END)
+                playback_speed_entry.insert(END, 1)
                 return None
         playback_container_label.speed_modifier = playback_speed_entry.get()
         # Main playback_start_stop function
@@ -757,21 +789,13 @@ def playback(playback_container_label):
                         wait = int(round(float(FLOG_LOOPING[1].split('(')[1].rstrip(')')) * 1000)) # .after() reads times as miliseconds whereas FLOG/FLOG_LOOPING are in seconds; it also requires integer values
                 elif type(function) == list:
                         if function[0] == 'key_type':
-                                key_type(function[1], typing_seconds=function[2])
-                                wait = int(round(FLOG_LOOPING[1][2]) * 1000) # .after() reads times as miliseconds whereas FLOG/FLOG_LOOPING are in seconds; it also requires integer values
+                                key_type(function[1], typing_seconds=function[2], container_label=playback_container_label)
+                                wait = int(round(float(FLOG_LOOPING[1].split('(')[1].rstrip(')')) * 1000)) # .after() reads times as miliseconds whereas FLOG/FLOG_LOOPING are in seconds; it also requires integer values
                 FLOG_LOOPING.append(FLOG_LOOPING.pop(0)) # Doing this rotates the first entry to the last position
                 FLOG_LOOPING.append(FLOG_LOOPING.pop(0))
                 playback_container_label.after(wait, playback, playback_container_label)
         else:
                 playback_container_label.after(100, playback, playback_container_label)
-
-def play_functions_list(functions_list):
-        for function in functions_list:
-                if type(function) == str:
-                        eval(function)
-                elif type(function) == list:
-                        if function[0] == 'key_type':
-                                key_type(function[1], typing_seconds=function[2])
 
 def browse_for_file(entry_to_write_to):
         file_location = filedialog.askopenfilename()
@@ -780,12 +804,12 @@ def browse_for_file(entry_to_write_to):
 
 def save_as_file(entry_to_write_to):
         file_location = filedialog.asksaveasfilename(defaultextension='.mk_pkl', initialdir=os.getcwd(), filetypes=[('autoMK pkl', '.mk_pkl')])
-        if file_location is None: # asksaveasfile returns `None` if dialog closed with "cancel".
+        if file_location == None: # asksaveasfile returns `None` if dialog closed with "cancel".
                 return None
         entry_to_write_to.delete(0, END)
         entry_to_write_to.insert(END, file_location)
 
-def validate_recording_file(entry_to_get_string_from):
+def validate_recording_file(entry_to_get_string_from, bottom_frame_playback, label_to_save_key_to):
         global FLOG
         recording_file = entry_to_get_string_from.get()
         # Validate file exists
@@ -802,24 +826,31 @@ def validate_recording_file(entry_to_get_string_from):
                 messagebox.showinfo('Error: File extension unrecognised', 'Recording file has unknown file extension. It should end with .mk_pkl or .mk_syn.')
                 return None
         # Validate .mk_syn files
-        file_result = validate_syntax(recording_file)
-        if type(file_result) == str:
-                messagebox.showinfo('Error: mk_syn file incorrectly formatted', file_result)
-                return None
-        else:
-                messagebox.showinfo('Success!', 'Recording file was loaded and validated successfully!')
-                FLOG = convert_syntax_to_functions(recording_file) # FLOG stands for function log; value made by this function or recording_start_stop()
-                return None
+        if recording_file_extension.lower() == 'mk_syn':
+                file_result = validate_syntax(recording_file)
+                if type(file_result) == str:
+                        messagebox.showinfo('Error: mk_syn file incorrectly formatted', file_result)
+                        return None
+                else:
+                        messagebox.showinfo('Success!', 'Recording file was loaded and validated successfully!')
+                        FLOG, keys_to_pause_as_string = convert_syntax_to_functions(recording_file) # FLOG stands for function log; value made by this function or recording_start_stop()
+                        label_to_save_key_to['text'] = keys_to_pause_as_string
+                        bottom_frame_playback.tkraise()
+                        return None
         # Validate .mk_pkl files
-        message_title, message_body, pickle_contents = validate_pickle(recording_file)
-        messagebox.showinfo(message_title, message_body)
-        if message_title != 'Success!':
-                return None
-        else:
-                FLOG = pickle_contents
-                return None
+        elif recording_file_extension.lower() == 'mk_pkl':
+                message_title, message_body, pickle_FLOG, pickle_keys = validate_pickle(recording_file)
+                messagebox.showinfo(message_title, message_body)
+                if message_title != 'Success!':
+                        return None
+                else:
+                        FLOG = pickle_FLOG
+                        label_to_save_key_to['text'] = pickle_keys
+                        bottom_frame_playback.tkraise()
+                        return None
 
-def validate_save_file(entry_to_get_string_from):
+def validate_save_file(entry_to_get_string_from, label_to_get_keys_from):
+        global FLOG
         file_output_name = entry_to_get_string_from.get()
         # Validate file exists
         if os.path.isfile(file_output_name):
@@ -834,10 +865,16 @@ def validate_save_file(entry_to_get_string_from):
         if recording_file_extension.lower() not in ACCEPTED_FILE_TYPES:
                 messagebox.showinfo('Error: File extension unrecognised', 'Recording file has unknown file extension. It should end with .mk_pkl or .mk_syn.')
                 return None
+        # Obtain keys used to record file
+        keys_to_pause_text = derive_text_from_label(label_to_get_keys_from)
+        # Save the file
+        pickle.dump([FLOG, keys_to_pause_text], open(file_output_name, "wb"))
         # Let user know it's all good!
         messagebox.showinfo('Success!', 'Recording file was saved successfully!')
-        global SAVED_FILE_NAME
-        SAVED_FILE_NAME = file_output_name
+
+def frame_switching(frame_to_switch_to, playback_check_button_state):
+        playback_check_button_state.set(False)
+        frame_to_switch_to.tkraise()
 
 def gui_window():
         # Set variables which are global in scope
@@ -853,14 +890,14 @@ def gui_window():
         window.geometry('{}x{}'.format(900, 400)) # width, height
         # Create main frame container objects
         top_frame = Frame(window, width=350, height=200) # This will hold the coord widgets
-        bottom_frame_record = Frame(window, width=350, height=300) # This will hold the recording widgets
         bottom_frame_playback = Frame(window, width=350, height=300) # This will hold the playback widgets
+        bottom_frame_record = Frame(window, width=350, height=300) # This will hold the recording widgets
         # Layout of main frame containers
         #window.grid_rowconfigure(1, weight=1)
         #window.grid_columnconfigure(0, weight=1)
         top_frame.grid(row=0, sticky="nsew")
         bottom_frame_record.grid(row=1, sticky="nsew")
-        bottom_frame_playback.grid(row=2, sticky="nsew") # rewrite to overlap above frame soon
+        bottom_frame_playback.grid(row=1, sticky="nsew") # rewrite to overlap above frame soon
         # Create widgets for top frame
         pause_text_label = Label(top_frame, text='Key to pause coord:')
         key_display_label = Label(top_frame, text='', bg='white') # This label has the keys_to_pause value set as its ['text'] attribute; can be retrieved with derive_keys_from_label()
@@ -886,7 +923,7 @@ def gui_window():
         recording_location_entry = Entry(bottom_frame_record, width=40)
         recording_location_entry.insert(END, os.getcwd())
         recording_browse_button = Button(bottom_frame_record, text='Browse', command=partial(browse_for_file, recording_location_entry))
-        recording_validate_button = Button(bottom_frame_record, text='Load', command=partial(validate_recording_file, recording_location_entry))
+        'recording_validate_button would belong here but it needs to be below for its command= to function correctly'
         ##
         generate_text_label = Label(bottom_frame_record, text='Generate new recording:')
         options_combo = Combobox(bottom_frame_record)
@@ -899,6 +936,8 @@ def gui_window():
         record_check_button_state = BooleanVar()
         record_check_button = Checkbutton(bottom_frame_record, text='Activate button', var=record_check_button_state)
         record_check_button.state = record_check_button_state
+        ##
+        recording_validate_button = Button(bottom_frame_record, text='Load', command=partial(validate_recording_file, recording_location_entry, bottom_frame_playback, record_key_display_label))
         # Layout of bottom frame widgets
         load_text_label.grid(row=3, column=0)
         recording_location_entry.grid(row=3, column=1)
@@ -915,7 +954,6 @@ def gui_window():
         # Create widgets for playback bottom frame
         playback_text_label = Label(bottom_frame_playback, text='Key to start/stop playback:')
         playback_key_display_label = Label(bottom_frame_playback, text='', bg='white')
-        playback_key_set_button = Button(bottom_frame_playback, text='Click to record key', command=partial(key_to_pause_clicked, playback_key_display_label))
         playback_check_button_state = BooleanVar()
         playback_check_button = Checkbutton(bottom_frame_playback, text='Activate button', var=playback_check_button_state)
         playback_check_button.state = playback_check_button_state
@@ -929,12 +967,13 @@ def gui_window():
         save_recording_location_entry = Entry(bottom_frame_playback, width=40)
         save_recording_location_entry.insert(END, os.path.join(os.getcwd(), 'autoMK_' + '-'.join([str(date.today().day), str(date.today().month), str(date.today().year)]) + '.mk_pkl'))
         save_recording_browse_button = Button(bottom_frame_playback, text='Browse', command=partial(save_as_file, save_recording_location_entry))
-        save_recording_validate_button = Button(bottom_frame_playback, text='Save', command=partial(validate_save_file, save_recording_location_entry))
+        save_recording_validate_button = Button(bottom_frame_playback, text='Save', command=partial(validate_save_file, save_recording_location_entry, record_key_display_label))
+        ##
+        new_recording_button = Button(bottom_frame_playback, text='Generate new recording', command=partial(frame_switching, bottom_frame_record, playback_check_button_state))
         # Layout of playback bottom frame widgets
         playback_text_label.grid(row=6, column=0) # These will be rewritten to overlap the recording bottom frame soon
         playback_key_display_label.grid(row=6, column=1)
-        playback_key_set_button.grid(row=6, column=2)
-        playback_check_button.grid(row=6, column=3)
+        playback_check_button.grid(row=6, column=2)
         ##
         playback_speed_label_prefix.grid(row=7, column=0)
         playback_speed_entry.grid(row=7, column=1)
@@ -944,6 +983,8 @@ def gui_window():
         save_recording_location_entry.grid(row=8, column=1)
         save_recording_browse_button.grid(row=8, column=2)
         save_recording_validate_button.grid(row=8, column=3)
+        ##
+        new_recording_button.grid(row=9, column=0)
         # Create label containers for ongoing functions
         playback_container_label = Label(window, text='')
         playback_container_label.currently_playing = False
@@ -951,40 +992,18 @@ def gui_window():
         playback_container_label.after(100, playback, playback_container_label) # playback and playback_start_stop interact with each other, with playback_start_stop setting values in playback which... start and stop playback
         # Call ongoing functions acting on global values
         key_display_label.after(100, coord_label_update, key_display_label) # Makes use of (x/y)_display_label and PAUSE_COORDS
-        record_key_display_label.after(100, recording_start_stop, record_key_display_label, record_check_button, options_combo) ## TBD
+        record_key_display_label.after(100, recording_start_stop, record_key_display_label, record_check_button, options_combo, bottom_frame_playback, record_check_button_state) ## TBD
+        playback_key_display_label.after(1000, derive_text_from_label_continuous, record_key_display_label, playback_key_display_label)
         # Launch mainloop
         window.mainloop()
 
 def main():
         '''TBD;
-        0) Add failsafe mechanism to cancel program operation (e.g., press left ctrl + right ctrl)
-        1) Produce a menu screen that allows the user to call specific functions and set global values e.g., speed-up factors
-        2) Produce a config file syntax that allows users to provide simple instructions for mouse/keyboard automation that can be reconstituted appropriately
-        3) Re-add coord tracking function to allow the user to make manual adjustments to the config file more simply
+        0) Add failsafe handling for all pyautogui functions
+        1) Make
         4) Add extra functionality into the config file approach such as string strip/concatenation for values copied into clipboard?
         '''
-        
-        ## TESTING ZONE ##
-        a = Keylogging()
-        b = Mouselogging()
-        a.start_logging()
-        b.start_logging()
-        #
-        a.stop_logging()
-        b.stop_logging()
-        #
-        c = merge_logs(a, b)
-        d = shrink_moveevents(c)
-        e = convert_log_to_functions(d)
-        play_functions_list(e)
+        gui_window()
 
 if __name__ == '__main__':
-        #main()
-        gui_window()
-        #pass
-
-
-#syntax_file = 'C:\\Bioinformatics\\GitHub\\personal_projects\\mouse_keyboard_automation\\syntax_test.txt'
-#time.sleep(5)
-#eg = convert_syntax_to_functions(syntax_file)
-#play_functions_list(eg)
+        main()

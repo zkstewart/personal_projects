@@ -1,3 +1,4 @@
+#keys w
 mouse click_left x0y100 duration5
 mouse move x100y200 duration1
 wait5
