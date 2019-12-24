@@ -7,7 +7,7 @@
 '''
 
 # Import modules
-import pyautogui, keyboard, mouse, queue, ctypes, screeninfo, time, re, os, pickle
+import pyautogui, keyboard, mouse, queue, ctypes, screeninfo, time, re, os, pickle, copy
 from tkinter import scrolledtext
 from tkinter import filedialog
 from tkinter import messagebox
@@ -262,8 +262,10 @@ def convert_log_to_functions(log_list, unpress_keys=True):
                 for key in currently_pressed:
                         if key in ['left', 'right', 'middle']:
                                 functions_list.append('mouse_up("' + key + '")')
+                                functions_list.append('time.sleep(0)')
                         else:
                                 functions_list.append('key_up("' + key + '")')
+                                functions_list.append('time.sleep(0)')
         return functions_list
 
 def validate_positive_integer(number):
@@ -423,16 +425,20 @@ def convert_syntax_to_functions(syntax_file):
                                                 duration = 0.0
                                         if sl[1] == 'click_left':
                                                 functions_list.append('mouse_move([' + str(x_coord) + ', ' + str(y_coord) + '])')
+                                                functions_list.append('time.sleep(0)') # Every function needs a time.sleep buffer for FLOG_LOOPING
                                                 most_recent_mouse_coord = x_coord, y_coord
                                                 functions_list.append('mouse_down("left")')
                                                 functions_list.append('time.sleep(' + str(duration) + ')')
                                                 functions_list.append('mouse_up("left")')
+                                                functions_list.append('time.sleep(0)')
                                         elif sl[1] == 'click_right':
                                                 functions_list.append('mouse_move([' + str(x_coord) + ', ' + str(y_coord) + '])')
+                                                functions_list.append('time.sleep(0)')
                                                 most_recent_mouse_coord = x_coord, y_coord
                                                 functions_list.append('mouse_down("right")')
                                                 functions_list.append('time.sleep(' + str(duration) + ')')
                                                 functions_list.append('mouse_up("right")')
+                                                functions_list.append('time.sleep(0)')
                                         elif sl[1] == 'move':
                                                 if most_recent_mouse_coord[0] == None:
                                                         curr_x, curr_y = pyautogui.position()
@@ -470,13 +476,16 @@ def convert_syntax_to_functions(syntax_file):
                                 if sl[1] in ['press']:
                                         if sl[1] == 'press':
                                                 functions_list.append('key_press(' + str(sl[2:]) + ', hold_seconds=' + str(duration) + ')')
+                                                functions_list.append('time.sleep(0)')
                                 elif sl[1] in ['type']:
                                         if sl[1] == 'type':
                                                 functions_list.append(['key_type', sl_to_typeable_string(sl[2:]), duration])
+                                                functions_list.append('time.sleep(0)')
                         # Wait functions
                         if sl[0].startswith('wait'):
                                 duration = float(sl[0][4:])
                                 functions_list.append('time.sleep(' + str(duration) + ')')
+                                functions_list.append('time.sleep(0)') # FLOG_LOOPING even needs time.sleep to be buffered with time.sleep... bit silly but oh well
         return functions_list
 
 def mouse_move_tween_to_functions(x_coord1, y_coord1, x_coord2, y_coord2, duration_seconds=1, steps_per_second=10):
@@ -487,7 +496,9 @@ def mouse_move_tween_to_functions(x_coord1, y_coord1, x_coord2, y_coord2, durati
 
 def mouse_drag_syntax_to_functions(x_coord1, y_coord1, x_coord2, y_coord2, duration_seconds=1, steps_per_second=10):
         functions_list = ['mouse_move([' + str(x_coord1) + ', ' + str(y_coord1) + '])']
+        functions_list.append('time.sleep(0)')
         functions_list.append('mouse_down("left")')
+        functions_list.append('time.sleep(0)')
         try:
                 functions_list += coordinate_pairs_to_functions(coordinate_tween(x_coord1, y_coord1, x_coord2, y_coord2, duration_seconds, steps_per_second), duration_seconds)
         except ZeroDivisionError:
@@ -518,14 +529,16 @@ def coordinate_pairs_to_functions(coord_pairs, duration_seconds): # Function int
         num_of_steps = len(coord_pairs)
         seconds_per_step = duration_seconds / num_of_steps
         functions_list = []
+        functions_list.append('time.sleep(0)') # Adding this in here makes sure our FLOG_LOOPING structure has the proper time.sleep buffer in place
         for pair in coord_pairs:
                 functions_list.append('time.sleep(' + str(seconds_per_step) + ')')
                 functions_list.append('mouse_move([' + str(pair[0]) + ', ' + str(pair[1]) + '])')
+        functions_list.append('time.sleep(0)') # As above, buffer time.sleep
         return functions_list
 
 def mouse_scroll_syntax_to_functions(num_of_scrolls, direction, duration_seconds):
         seconds_per_scroll = duration_seconds / (num_of_scrolls+1) # Add an extra time.sleep() function so we can have a wait before and after our first/last scrolls
-        functions_list = []
+        functions_list = ['time.sleep(0)']
         for i in range(num_of_scrolls):
                 if i == 0:
                         functions_list.append('time.sleep(' + str(seconds_per_scroll) + ')')
@@ -564,26 +577,6 @@ def check_log_for_value(log_object, value_name):
                                 if (event.delta == 1.0 and value_name == 'scroll_up') or (event.delta == -1.0 and value_name == 'scroll_down'):
                                         return True
         return False
-
-def play_functions_list(functions_list):
-        for function in functions_list:
-                if type(function) == str:
-                        eval(function)
-                elif type(function) == list:
-                        if function[0] == 'key_type':
-                                key_type(function[1], typing_seconds=function[2])
-
-def play_function(functions_list):
-        function = functions_list[0]
-        wait = functions_list[0]
-        if type(function) == str:
-                eval(function)
-        elif type(function) == list:
-                if function[0] == 'key_type':
-                        key_type(function[1], typing_seconds=function[2])
-        functions_list.append(functions_list.pop(0)) # Doing this rotates the first entry to the last position
-        functions_list.append(functions_list.pop(0))
-        return wait
 
 ## Functions related to user interfacing
 def key_to_pause_clicked(label_to_update):
@@ -649,6 +642,13 @@ def derive_keys_from_label(label_to_get_string_from):
         keys_to_pause = keys_to_pause_as_string.split(' ')
         return keys_to_pause
 
+def derive_text_from_label(label_to_get_string_from):
+        label_text = label_to_get_string_from['text']
+        return label_text
+
+def update_label_text(label_to_write_text_to, text):
+        label_to_write_text_to['text'] = text
+
 def check_if_keys_pressed(keys_list):
         all_pressed = True
         for key in keys_list:
@@ -693,7 +693,6 @@ def recording_start_stop(record_key_display_label, record_check_button, options_
                                 if CURRENTLY_RECORDING == True:
                                         stop_recording = True
                                 else:
-                                        CURRENTLY_RECORDING = True
                                         start_recording = True
         if start_recording == True:
                 recording_option = options_combo.get()
@@ -703,6 +702,7 @@ def recording_start_stop(record_key_display_label, record_check_button, options_
                 if recording_option == 'keyboard' or recording_option == 'mouse+keyboard':
                         KLOG = Keylogging()
                         KLOG.start_logging()
+                CURRENTLY_RECORDING = True
         elif stop_recording == True:
                 # Gather our logs
                 if 'MLOG' in globals(): # Could check the combobox, but it's possible that value has changed since we started recording
@@ -717,34 +717,61 @@ def recording_start_stop(record_key_display_label, record_check_button, options_
                         CLOG = merge_logs(KLOG, MLOG) # CLOG stands for combined log
                 # Convert logs to functions
                 FLOG = convert_log_to_functions(CLOG) # FLOG now stands for functions log
+                CURRENTLY_RECORDING = False
         record_key_display_label.after(100, recording_start_stop, record_key_display_label, record_check_button, options_combo)
 
-def playback_start_stop(playback_key_display_label, playback_check_button, playback_speed_entry):
+def playback_start_stop(playback_container_label, playback_key_display_label, playback_check_button, playback_speed_entry):
         global FLOG
-        global CURRENTLY_PLAYING
         # Validate playback_speed_entry value
         integer_validation_result = validate_positive_integer(playback_speed_entry.get())
         if integer_validation_result == False:
                 messagebox.showinfo('Error: Playback speed is flawed', 'Playback speed must be a positive integer.')
                 return None
+        playback_container_label.speed_modifier = playback_speed_entry.get()
         # Main playback_start_stop function
         keys_to_playback = derive_keys_from_label(playback_key_display_label)
         stop_playback = False
         start_playback = False
-        if playback_check_button.state.get() == True or CURRENTLY_PLAYING == True: # This or system prevents playback_check_button checking from preventing us stopping a current playback session
+        if playback_check_button.state.get() == True or playback_container_label.currently_playing == True: # This or system prevents playback_check_button checking from preventing us stopping a current playback session
                 if keys_to_playback != ['']:
                         all_pressed = check_if_keys_pressed(keys_to_playback)
                         if all_pressed == True:
-                                if CURRENTLY_PLAYING == True:
+                                if playback_container_label.currently_playing == True:
                                         stop_playback = True
                                 else:
-                                        CURRENTLY_PLAYING = True
                                         start_playback = True
-        if CURRENTLY_PLAYING == True:
-                wait_time = play_function(FLOG)
-        elif stop_playback == True:
-                CURRENTLY_PLAYING = False
-        playback_key_display_label.after(100, playback_start_stop, playback_key_display_label, playback_check_button, playback_speed_entry)
+        if start_playback == True:
+                global FLOG_LOOPING
+                FLOG_LOOPING = copy.deepcopy(FLOG) # This will be a list we constantly reorder, leaving the original FLOG intact for restarting playback
+                playback_container_label.currently_playing = True
+        if stop_playback == True:
+                playback_container_label.currently_playing = False
+        playback_key_display_label.after(100, playback_start_stop, playback_container_label, playback_key_display_label, playback_check_button, playback_speed_entry)
+
+def playback(playback_container_label):
+        global FLOG_LOOPING
+        if playback_container_label.currently_playing == True: # As soon as this becomes False playback will stop automatically
+                function = FLOG_LOOPING[0]
+                if type(function) == str:
+                        eval(function)
+                        wait = int(round(float(FLOG_LOOPING[1].split('(')[1].rstrip(')')) * 1000)) # .after() reads times as miliseconds whereas FLOG/FLOG_LOOPING are in seconds; it also requires integer values
+                elif type(function) == list:
+                        if function[0] == 'key_type':
+                                key_type(function[1], typing_seconds=function[2])
+                                wait = int(round(FLOG_LOOPING[1][2]) * 1000) # .after() reads times as miliseconds whereas FLOG/FLOG_LOOPING are in seconds; it also requires integer values
+                FLOG_LOOPING.append(FLOG_LOOPING.pop(0)) # Doing this rotates the first entry to the last position
+                FLOG_LOOPING.append(FLOG_LOOPING.pop(0))
+                playback_container_label.after(wait, playback, playback_container_label)
+        else:
+                playback_container_label.after(100, playback, playback_container_label)
+
+def play_functions_list(functions_list):
+        for function in functions_list:
+                if type(function) == str:
+                        eval(function)
+                elif type(function) == list:
+                        if function[0] == 'key_type':
+                                key_type(function[1], typing_seconds=function[2])
 
 def browse_for_file(entry_to_write_to):
         file_location = filedialog.askopenfilename()
@@ -820,10 +847,6 @@ def gui_window():
         global y_display_label # As above
         global CURRENTLY_RECORDING # This value needs to be updated by recording_start_stop()
         CURRENTLY_RECORDING = False # As above
-        global FLOG # This value needs to be updated by recording_start_stop() or validate_recording_file()
-        FLOG = None # FLOG being None or a list will be the switch for replacing bottom frames
-        global CURRENTLY_PLAYING # This value needs to be updated by playback_start_stop()
-        CURRENTLY_PLAYING = False # As above
         # Set up Tkinter window object
         window = Tk() # Main GUI object
         window.title('autoMK') # Sets the title that displays on the top bar
@@ -923,7 +946,9 @@ def gui_window():
         save_recording_validate_button.grid(row=8, column=3)
         # Create label containers for ongoing functions
         playback_container_label = Label(window, text='')
-        playback_container_label.after(100, playback_start_stop, playback_key_display_label, playback_check_button, playback_speed_entry)
+        playback_container_label.currently_playing = False
+        playback_container_label.after(100, playback_start_stop, playback_container_label, playback_key_display_label, playback_check_button, playback_speed_entry)
+        playback_container_label.after(100, playback, playback_container_label) # playback and playback_start_stop interact with each other, with playback_start_stop setting values in playback which... start and stop playback
         # Call ongoing functions acting on global values
         key_display_label.after(100, coord_label_update, key_display_label) # Makes use of (x/y)_display_label and PAUSE_COORDS
         record_key_display_label.after(100, recording_start_stop, record_key_display_label, record_check_button, options_combo) ## TBD
