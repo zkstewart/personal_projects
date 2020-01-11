@@ -68,7 +68,16 @@ def mouse_up(button, seconds=1):
         pyautogui.mouseUp(button=button, pause=seconds)
 
 def variableTime(time):
-        return time + random.random()
+        return time + random.uniform(0, 0.2)
+
+def mouse_press(button):
+        if button.lower() not in ['left', 'right', 'middle']:
+                print('mouse_press: button not recognised; coding error')
+                quit()
+        mouse_down(button.lower())
+        sleepTime=variableTime(0.10)
+        time.sleep(sleepTime)
+        mouse_up(button.lower())
 
 ## Keylogger-related
 def start_key_logger():
@@ -127,11 +136,13 @@ def restart_keylogger_for_specialcommand(string):
 def skillbar4_coordinates():
         return [[710,780],[755,780],[800,780],[845,780],[890,780],[935,780],[980,780],[1025,780],[1070,780],[1115,780],[1160,780],[1205,780]]
 
-# Hard-coded definitions for specific macros
+# Main pre-programmed automation functions
 def craft(skillbar_coords, wait_times, num_iterations, template_directory):
         # Hard-coded values and offsets
         SYNTHESIZE_X_OFFSET = 50
         SYNTHESIZE_Y_OFFSET = 15
+        COLLECTIBLE_X_OFFSET = 120
+        COLLECTIBLE_Y_OFFSET = 220
         WAIT_TIME = 2
         # Monitor dimensions
         monitor = screeninfo.get_monitors()[0]
@@ -157,10 +168,7 @@ def craft(skillbar_coords, wait_times, num_iterations, template_directory):
                                                 continue
                                         break
                                 mouse_move([int(synthesize_x_coord+int(SYNTHESIZE_X_OFFSET / (1920 / monitor.width))), int(synthesize_y_coord+int(SYNTHESIZE_Y_OFFSET / (1080 / monitor.height)))])
-                                mouse_down('left')
-                                sleepTime=variableTime(0.2)
-                                time.sleep(sleepTime)
-                                mouse_up('left')
+                                mouse_press('left')
                                 sleepTime=variableTime(1.5) 
                                 time.sleep(sleepTime)
                                 q = restart_keylogger_for_specialcommand('CTRL_esc')
@@ -180,13 +188,327 @@ def craft(skillbar_coords, wait_times, num_iterations, template_directory):
                                 break
                         # Click macro button and wait
                         mouse_move(skillbar_coords[x])
-                        mouse_down('left')
-                        sleepTime=variableTime(0.2)
-                        time.sleep(sleepTime)
-                        mouse_up('left')
+                        mouse_press('left')
                         sleepTime=variableTime(wait_times[x])
                         time.sleep(sleepTime)
                         q = restart_keylogger_for_specialcommand('CTRL_esc')
+                # Collectible contingency
+                screenshot_grayscale = take_screenshot()
+                collectwindow_x_coord, collectwindow_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'collectible_screen.png'))
+                if collectwindow_x_coord != False:
+                        mouse_move([int(collectwindow_x_coord+int(COLLECTIBLE_X_OFFSET / (1920 / monitor.width))), int(collectwindow_y_coord+int(COLLECTIBLE_Y_OFFSET / (1080 / monitor.height)))])
+                        mouse_press('left')
+                        sleepTime=variableTime(4.0)
+                        time.sleep(sleepTime)
+
+def coord_fudger(x_coord_topleft, y_coord_topleft, image_file):
+        image = cv2.imread(image_file, 0)
+        height, width = image.shape
+        x_coord_random, y_coord_random = coord_randomiser(x_coord_topleft, y_coord_topleft, x_coord_topleft+width, y_coord_topleft+height)
+        return [int(x_coord_random), int(y_coord_random)] # This just prevents the mouse_move function from being upset that these values are not the exact type of integer it's expecting (I don't understand it).
+
+def coord_randomiser(x_coord_min, y_coord_min, x_coord_max, y_coord_max):
+        return random.randrange(x_coord_min, x_coord_max), random.randrange(y_coord_min, y_coord_max)
+
+def collect(template_directory):
+        COLLECT_SLEEP_TIME = 2
+        YES_SLEEP_TIME = 1
+        def button_not_found_error(x_coord, button_name):
+                if x_coord == False:
+                        print(button_name + ' was not found on your hotbar! Change to botanist or miner now.')
+                        return False
+                else:
+                        return True
+        def auto_collect(screenshot_grayscale, collectwindow_x_coord, collectwindow_y_coord, template_directory):
+                # Locate collect button
+                collect_button_x_coord, collect_button_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'collect_button.png'))
+                button_not_found_error(collect_button_x_coord, 'Collect button') # This shouldn't be necessary, but you never know
+                # Figure out how much GP we have available
+                gp = int(gp_number_find(template_directory))
+                # Start rotation
+                ## Cast impulsive appraisal
+                mouse_move(coord_fudger(impulsive_appraisal_x_coord, impulsive_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'impulsive_appraisal.png')))
+                mouse_press('left')
+                score = cast_sleep('impulsive_appraisal', 0)
+                ## Branching point: Respond to discerning eye proc
+                proc = discerning_eye_procced(template_directory)
+                if proc == True:
+                        # Cast 2x instinctual appraisal
+                        for i in range(2):
+                                # Cast single mind if possible
+                                if gp >= 400: # This ensures we hold onto at least 200gp if possible for an utmost caution or discerning eye later
+                                        mouse_move(coord_fudger(single_mind_x_coord, single_mind_y_coord, os.path.join(template_directory, 'gathering', 'single_mind.png')))
+                                        mouse_press('left')
+                                        gp -= 200
+                                        cast_sleep('single_mind', score)
+                                # Cast instinctual appraisal
+                                mouse_move(coord_fudger(instinctual_appraisal_x_coord, instinctual_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'instinctual_appraisal.png')))
+                                mouse_press('left')
+                                score = cast_sleep('instinctual_appraisal', score)
+                        ## Branching point: Respond to collectability
+                        top_path_collectability_branch(gp)
+                else:
+                        # Cast impulsive appraisal
+                        mouse_move(coord_fudger(impulsive_appraisal_x_coord, impulsive_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'impulsive_appraisal.png')))
+                        mouse_press('left')
+                        score = cast_sleep('impulsive_appraisal', score)
+                        ## Branching point: Respond to discerning eye proc
+                        proc = discerning_eye_procced(template_directory)
+                        if proc == True:
+                                # Cast single mind if possible
+                                if gp >= 400:
+                                        mouse_move(coord_fudger(single_mind_x_coord, single_mind_y_coord, os.path.join(template_directory, 'gathering', 'single_mind.png')))
+                                        mouse_press('left')
+                                        gp -= 200
+                                        cast_sleep('single_mind', score)
+                                # Cast 1x instinctual appraisal
+                                mouse_move(coord_fudger(instinctual_appraisal_x_coord, instinctual_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'instinctual_appraisal.png')))
+                                mouse_press('left')
+                                score = cast_sleep('instinctual_appraisal', score)
+                                ## Branching point: Respond to collectability
+                                top_path_collectability_branch(gp)
+                        else:
+                                # Cast impulsive appraisal
+                                mouse_move(coord_fudger(impulsive_appraisal_x_coord, impulsive_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'impulsive_appraisal.png')))
+                                mouse_press('left')
+                                score = cast_sleep('impulsive_appraisal', score)
+                                ## Branching point: Respond to discerning eye proc
+                                proc = discerning_eye_procced(template_directory)
+                                if proc == True:
+                                        middle_branch_final(gp)
+                                else:
+                                        # Cast discerning eye if possible
+                                        if gp >= 200:
+                                                mouse_move(coord_fudger(discerning_eye_x_coord, discerning_eye_y_coord, os.path.join(template_directory, 'gathering', 'discerning_eye.png')))
+                                                mouse_press('left')
+                                                gp -= 200
+                                                cast_sleep('discerning_eye', score)
+                                        # Cast utmost caution if possible
+                                        if gp >= 200:
+                                                mouse_move(coord_fudger(utmost_caution_x_coord, utmost_caution_y_coord, os.path.join(template_directory, 'gathering', 'utmost_caution.png')))
+                                                mouse_press('left')
+                                                gp -= 200
+                                                cast_sleep('utmost_caution', score)
+                                        # Cast single mind if possible
+                                        if gp >= 200:
+                                                mouse_move(coord_fudger(single_mind_x_coord, single_mind_y_coord, os.path.join(template_directory, 'gathering', 'single_mind.png')))
+                                                mouse_press('left')
+                                                gp -= 200
+                                                cast_sleep('single_mind', score)
+                                        # Cast methodical appraisal
+                                        mouse_move(coord_fudger(methodical_appraisal_x_coord, methodical_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'methodical_appraisal.png')))
+                                        mouse_press('left')
+                                        score = cast_sleep('methodical_appraisal', score)
+                                        # Collect
+                                        collect_button_loop()
+        def cast_sleep(skill_name, collectability):
+                CAST_SLEEP_TIME = 0.2
+                if skill_name in ['utmost_caution', 'single_mind', 'discerning_eye']:
+                        while True:
+                                screenshot_grayscale = take_screenshot()
+                                buff_x_coord, buff_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', skill_name + '.png'))
+                                if buff_x_coord == False: # Buff should be present when skill is complete
+                                        time.sleep(CAST_SLEEP_TIME)
+                                else:
+                                        break
+                else:
+                        while True:
+                                screenshot_grayscale = take_screenshot()
+                                score = int(collect_score_find(template_directory))
+                                if int(score) == collectability: # Collectability score should increase when skill is complete
+                                        time.sleep(CAST_SLEEP_TIME)
+                                else:
+                                        return score
+        def collect_button_loop():
+                while True:
+                        screenshot_grayscale = take_screenshot()
+                        collect_button_x_coord, collect_button_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'collect_button.png'))
+                        if collect_button_x_coord == False:
+                                break
+                        mouse_move(coord_fudger(collect_button_x_coord, collect_button_y_coord, os.path.join(template_directory, 'gathering', 'collect_button.png')))
+                        mouse_press('left')
+                        time.sleep(COLLECT_SLEEP_TIME)
+                        yes_button_fails = 0
+                        while True:
+                                screenshot_grayscale = take_screenshot()
+                                yes_button_x_coord, yes_button_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'yes_button.png'))
+                                if yes_button_x_coord == False:
+                                        time.sleep(YES_SLEEP_TIME)
+                                        yes_button_fails += 1
+                                        if yes_button_fails == 5:
+                                                break
+                                        continue
+                                mouse_move(coord_fudger(yes_button_x_coord, yes_button_y_coord, os.path.join(template_directory, 'gathering', 'yes_button.png')))
+                                mouse_press('left')
+                                break
+        def top_path_collectability_branch(gp):
+                score = int(collect_score_find(template_directory))
+                if score >= 450:
+                        # Collect
+                        collect_button_loop()
+                elif score > 390:
+                        # Cast single mind if possible
+                        if gp >= 200:
+                                mouse_move(coord_fudger(single_mind_x_coord, single_mind_y_coord, os.path.join(template_directory, 'gathering', 'single_mind.png')))
+                                mouse_press('left')
+                                cast_sleep('single_mind', score)
+                        # Cast stickler
+                        mouse_move(coord_fudger(stickler_x_coord, stickler_y_coord, os.path.join(template_directory, 'gathering', 'stickler.png')))
+                        mouse_press('left')
+                        score = cast_sleep('stickler', score)
+                        # Collect
+                        collect_button_loop()
+                else:
+                        middle_branch_final(gp)
+        def middle_branch_final(gp):
+                '''We enter this branch if we're in the top branch and are <390 collectability
+                or if we're in the bottom path and hit a discerning eye proc on the last impulsive'''
+                score = int(collect_score_find(template_directory))
+                # Cast utmost caution if possible
+                if gp >= 200:
+                        mouse_move(coord_fudger(utmost_caution_x_coord, utmost_caution_y_coord, os.path.join(template_directory, 'gathering', 'utmost_caution.png')))
+                        mouse_press('left')
+                        gp -= 200
+                        cast_sleep('utmost_caution', score)
+                # Cast single mind if possible
+                if gp >= 200:
+                        mouse_move(coord_fudger(single_mind_x_coord, single_mind_y_coord, os.path.join(template_directory, 'gathering', 'single_mind.png')))
+                        mouse_press('left')
+                        cast_sleep('single_mind', score)
+                # Cast methodical appraisal
+                mouse_move(coord_fudger(methodical_appraisal_x_coord, methodical_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'methodical_appraisal.png')))
+                mouse_press('left')
+                score = cast_sleep('methodical_appraisal', score)
+                # Collect
+                collect_button_loop()
+        # Monitor dimensions
+        #monitor = screeninfo.get_monitors()[0]
+        # Continual checking for relevant button locations
+        while True:
+                time.sleep(5)
+                screenshot_grayscale = take_screenshot()
+                discerning_eye_x_coord, discerning_eye_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'discerning_eye.png'))
+                impulsive_appraisal_x_coord, impulsive_appraisal_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'impulsive_appraisal.png'))
+                instinctual_appraisal_x_coord, instinctual_appraisal_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'instinctual_appraisal.png'))
+                methodical_appraisal_x_coord, methodical_appraisal_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'methodical_appraisal.png'))
+                single_mind_x_coord, single_mind_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'single_mind.png'))
+                stickler_x_coord, stickler_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'stickler.png'))
+                utmost_caution_x_coord, utmost_caution_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'utmost_caution.png'))
+                # Validate that all buttons were found
+                valid_button = button_not_found_error(discerning_eye_x_coord, 'Discerning Eye')
+                if valid_button == False:
+                        continue
+                valid_button = button_not_found_error(impulsive_appraisal_x_coord, 'Impulsive Appraisal')
+                if valid_button == False:
+                        continue
+                valid_button = button_not_found_error(instinctual_appraisal_x_coord, 'Instinctual Appraisal')
+                if valid_button == False:
+                        continue
+                valid_button = button_not_found_error(methodical_appraisal_x_coord, 'Methodical Appraisal')
+                if valid_button == False:
+                        continue
+                valid_button = button_not_found_error(single_mind_x_coord, 'Single Mind')
+                if valid_button == False:
+                        continue
+                valid_button = button_not_found_error(stickler_x_coord, 'Stickler')
+                if valid_button == False:
+                        continue
+                valid_button = button_not_found_error(utmost_caution_x_coord, 'Utmost Caution')
+                if valid_button == False:
+                        continue
+                break
+        # Main operation loop
+        while True:
+                # Continual checking for actionable states
+                while True:
+                        screenshot_grayscale = take_screenshot()
+                        # State 1: Collection
+                        collectwindow_x_coord, collectwindow_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', '0_wear.png'))
+                        if collectwindow_x_coord != False:
+                                auto_collect(screenshot_grayscale, collectwindow_x_coord, collectwindow_y_coord, template_directory)
+                        # State 2: Item turnin
+                        ## x_coord, y_coord...
+                        ## if x_coord != False:
+                        ## auto_item_request()
+                        # State 3: Aetherial reduction
+                        ## This should involve template matching for the main reduction targets of aethersand in an inventory
+                        time.sleep(1.0)
+                
+
+def discerning_eye_procced(template_directory):
+        screenshot_grayscale = take_screenshot()
+        discerning_eye_buff_x_coord, discerning_eye_buff_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'discerning_eye_buff.png'))
+        if discerning_eye_buff_x_coord != False:
+                return True
+        else:
+                return False
+
+def gp_number_find(template_directory):
+        GP_EXTRA_Y_HEIGHT = 10
+        GP_TO_NUMBER_X_OFFSET = 53
+        GP_TO_NUMBER_Y_OFFSET = 15
+        GP_WIDTH = 60
+        GP_HEIGHT = GP_EXTRA_Y_HEIGHT + GP_TO_NUMBER_Y_OFFSET
+        # Monitor dimensions
+        monitor = screeninfo.get_monitors()[0]
+        # Locate GP text
+        screenshot_grayscale = take_screenshot()
+        gp_text_x_coord, gp_text_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'gp.png'))
+        # Screenshot the GP number
+        gp_screenshot_grayscale = take_screenshot((gp_text_x_coord+int(GP_TO_NUMBER_X_OFFSET / (1920 / monitor.width)), gp_text_y_coord-int(GP_EXTRA_Y_HEIGHT / (1080 / monitor.height)), abs(int(GP_WIDTH / (1920 / monitor.width))), int(GP_HEIGHT / (1080 / monitor.height))))
+        # Template match to read number and return
+        gp = screenshot_number_automatic_capture(gp_screenshot_grayscale, template_directory, '_gp.png')
+        return gp
+
+def collect_score_find(template_directory):
+        WEAR_TO_SCORE_X_OFFSET = 355
+        WEAR_TO_SCORE_Y_OFFSET = 10
+        SCORE_WIDTH = 40
+        SCORE_HEIGHT = 25
+        # Monitor dimensions
+        monitor = screeninfo.get_monitors()[0]
+        # Locate wear text
+        screenshot_grayscale = take_screenshot()
+        wear_x_coord, wear_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'wear.png'))
+        # Screenshot the score number
+        score_screenshot_grayscale = take_screenshot((wear_x_coord+int(WEAR_TO_SCORE_X_OFFSET / (1920 / monitor.width)), wear_y_coord+int(WEAR_TO_SCORE_Y_OFFSET / (1080 / monitor.height)), abs(int(SCORE_WIDTH / (1920 / monitor.width))), int(SCORE_HEIGHT / (1080 / monitor.height))))
+        # Template match to read number and return
+        score = screenshot_number_automatic_capture(score_screenshot_grayscale, template_directory, '.png')
+        return score
+
+def screenshot_template_match_multiple(screenshot_grayscale, template_file, threshold=0.95):
+        '''Some code borrowed from
+        https://www.tautvidas.com/blog/2018/02/automating-basic-tasks-in-games-with-opencv-and-python/
+        '''
+        # Load template file for recognition
+        template = cv2.imread(template_file, 0)
+        # Run template matching
+        res = cv2.matchTemplate(screenshot_grayscale, template, cv2.TM_CCOEFF_NORMED)
+        matches = np.where(res >= threshold)
+        # Validate that pattern matching was successful
+        if len(matches[0]) == 0:
+                return False, False # Return two values to not break downstream expectations
+        # Derive coordinates of template image
+        y_coords, x_coords = [], []
+        for i in range(len(matches[0])):
+                y_coords.append(matches[0][i])
+                x_coords.append(matches[1][i])
+        return x_coords, y_coords
+
+def screenshot_number_automatic_capture(screenshot_grayscale, template_directory, file_suffix, threshold=0.95):
+        digit_list = []
+        for x in range(0, 10):
+                x_coords, y_coords = screenshot_template_match_multiple(screenshot_grayscale, os.path.join(template_directory, 'gathering', str(x) + file_suffix), threshold)
+                if x_coords != False:
+                        for x_coord in x_coords:
+                                digit_list.append([x_coord, x])
+        if digit_list == []:
+                return False
+        digit_list.sort()
+        output_digit = ''
+        for digit_pair in digit_list:
+                output_digit += str(digit_pair[1])
+        return output_digit
 
 def preprogrammed_crafts(args, preprogrammed_list):
         # Define preprogrammed parameters
@@ -225,6 +547,8 @@ def main():
                         elif args.iterations == None:
                                 print('-p and/or -i argument was not provided')
                                 quit()
+                elif args.preprogrammed == 'collect':
+                        return args
                 else:
                         args = preprogrammed_crafts(args, preprogrammed_list)
                 # Validate that arguments are sensible
@@ -249,7 +573,7 @@ def main():
         '''
         template_directory = r'C:\Bioinformatics\GitHub\personal_projects\FFXIV_related\template_images\autoclick'
         # Hard-coded declaration of pre-programmed craft arguments
-        preprogrammed_list = ['instacraft']
+        preprogrammed_list = ['instacraft', 'collect']
         
         ##### USER INPUT SECTION
         usage = """%(prog)s automates clicks for FFXIV crafting. It has been tuned
@@ -258,20 +582,20 @@ def main():
         """
         p = argparse.ArgumentParser(description=usage)
         p.add_argument("-p", dest="preprogrammed", choices=preprogrammed_list,
-                       help="""Specify a pre-programmed craft; this argument
-                       automatically sets the below arguments, but you can
+                       help="""Specify a pre-programmed click automation; this argument
+                       automatically sets any relevant arguments below, but you can
                        "overwrite" the default setting for the pre-programmed
-                       craft by specifying these manually.""")
+                       automation by specifying these manually.""")
         p.add_argument("-n", dest="hotbar_number", nargs="+", type=int,
-                       help="""Hotbar number (from 1 to 12); if the craft
+                       help="""Craft: Hotbar number (from 1 to 12); if the craft
                        requires more than 1 macro, specify multiple values
                        separated by a space.""")
         p.add_argument("-w", dest="wait_time", nargs="+", type=int,
-                       help="""Number of seconds to wait for the macro to end
+                       help="""Craft: Number of seconds to wait for the macro to end
                        ; if the craft requires more than 1 macro, specify
                        multiple values separated by a space""")
         p.add_argument("-i", dest="iterations", type=int,
-                       help="Number of items to craft")
+                       help="Craft: Number of items to craft")
         p.add_argument("-H", dest="detailedHelp", action='store_true',
                      help="Provide details of preprogrammed function")
         args = p.parse_args()
@@ -283,12 +607,15 @@ def main():
                 SINGLE_MONITOR_DELAY = 10
         else:
                 single_monitor_mode = False
-        if single_monitor_mode:
+        if single_monitor_mode == True:
                 print('Single monitor mode is active; ' + str(SINGLE_MONITOR_DELAY) + ' second delay will be enacted now to allow for alt tabbing.')
                 time.sleep(SINGLE_MONITOR_DELAY)
         
         # Call function
-        craft(args.hotbar_number, args.wait_time, args.iterations, template_directory) # Hard-coded macro 3: instacraft
+        if args.preprogrammed == None or args.preprogrammed == 'instacraft':
+                craft(args.hotbar_number, args.wait_time, args.iterations, template_directory) # Hard-coded macro 3: instacraft
+        elif args.preprogrammed == 'collect':
+                collect(template_directory)
         
 
 if __name__ == '__main__':
