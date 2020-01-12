@@ -201,9 +201,13 @@ def craft(skillbar_coords, wait_times, num_iterations, template_directory):
                         sleepTime=variableTime(4.0)
                         time.sleep(sleepTime)
 
-def coord_fudger(x_coord_topleft, y_coord_topleft, image_file):
+def coord_fudger_from_image(x_coord_topleft, y_coord_topleft, image_file):
         image = cv2.imread(image_file, 0)
         height, width = image.shape
+        x_coord_random, y_coord_random = coord_randomiser(x_coord_topleft, y_coord_topleft, x_coord_topleft+width, y_coord_topleft+height)
+        return [int(x_coord_random), int(y_coord_random)] # This just prevents the mouse_move function from being upset that these values are not the exact type of integer it's expecting (I don't understand it).
+
+def coord_fudger_from_dimensions(x_coord_topleft, y_coord_topleft, width, height):
         x_coord_random, y_coord_random = coord_randomiser(x_coord_topleft, y_coord_topleft, x_coord_topleft+width, y_coord_topleft+height)
         return [int(x_coord_random), int(y_coord_random)] # This just prevents the mouse_move function from being upset that these values are not the exact type of integer it's expecting (I don't understand it).
 
@@ -287,7 +291,7 @@ def collect(template_directory):
                 if skill_name in ['utmost_caution', 'single_mind', 'discerning_eye']:
                         while True:
                                 if sleep_fails == 0: # This system attempts to allow the program to re-cast skills that were pressed during a lag spike that were not recognised by the game
-                                        mouse_move(coord_fudger(x_coord, y_coord, os.path.join(template_directory, 'gathering', skill_name + '.png')))
+                                        mouse_move(coord_fudger_from_image(x_coord, y_coord, os.path.join(template_directory, 'gathering', skill_name + '.png')))
                                         mouse_press('left')
                                 time.sleep(BUFF_SLEEP_TIME)
                                 screenshot_grayscale = take_screenshot()
@@ -301,7 +305,7 @@ def collect(template_directory):
                 else:
                         while True:
                                 if sleep_fails == 0: # This system attempts to allow the program to re-cast skills that were pressed during a lag spike that were not recognised by the game
-                                        mouse_move(coord_fudger(x_coord, y_coord, os.path.join(template_directory, 'gathering', skill_name + '.png')))
+                                        mouse_move(coord_fudger_from_image(x_coord, y_coord, os.path.join(template_directory, 'gathering', skill_name + '.png')))
                                         mouse_press('left')
                                 time.sleep(CAST_SLEEP_TIME)
                                 score = int(collect_score_find(template_directory))
@@ -318,7 +322,7 @@ def collect(template_directory):
                         collect_button_x_coord, collect_button_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'collect_button.png'))
                         if collect_button_x_coord == False:
                                 break
-                        mouse_move(coord_fudger(collect_button_x_coord, collect_button_y_coord, os.path.join(template_directory, 'gathering', 'collect_button.png')))
+                        mouse_move(coord_fudger_from_image(collect_button_x_coord, collect_button_y_coord, os.path.join(template_directory, 'gathering', 'collect_button.png')))
                         mouse_press('left')
                         time.sleep(COLLECT_SLEEP_TIME)
                         yes_button_fails = 0
@@ -335,7 +339,7 @@ def collect(template_directory):
                                                 if yes_button_fails == 5:
                                                         break
                                                 continue
-                                mouse_move(coord_fudger(yes_button_x_coord, yes_button_y_coord, os.path.join(template_directory, 'gathering', 'yes_button.png')))
+                                mouse_move(coord_fudger_from_image(yes_button_x_coord, yes_button_y_coord, os.path.join(template_directory, 'gathering', 'yes_button.png')))
                                 mouse_press('left')
                                 break
         def top_path_collectability_branch(gp):
@@ -368,6 +372,72 @@ def collect(template_directory):
                 score = cast_then_sleep('methodical_appraisal', score, methodical_appraisal_x_coord, methodical_appraisal_y_coord)
                 # Collect
                 collect_button_loop()
+        def auto_exchange(exchangewindow_x_coord, exchangewindow_y_coord, template_directory):
+                EXCHANGE_TEXT_TO_ROWS_X_OFFSET = 20
+                EXCHANGE_TEXT_TO_ROWS_Y_OFFSET = 95
+                ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET = 10
+                ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET = 40
+                CLICK_TARGET_TO_BOX_X_OFFSET = 5
+                CLICK_TARGET_TO_BOX_Y_OFFSET = 0
+                ITEM_REQUEST_TO_HANDOVER_X_OFFSET = 5
+                ITEM_REQUEST_TO_HANDOVER_Y_OFFSET = 90
+                ##
+                ROWS_WIDTH = 810
+                ROWS_HEIGHT = 25
+                ITEM_REQUEST_WIDTH = 40
+                ITEM_REQUEST_HEIGHT = 40
+                BOX_SIDE = 35
+                HANDOVER_WIDTH = 90
+                HANDOVER_HEIGHT = 17
+                ##
+                ITEM_REQUEST_SLEEP = 0.2
+                # Monitor dimensions
+                monitor = screeninfo.get_monitors()[0]
+                # Scan through collectable exchange screen for items to turn in
+                while True:
+                        screenshot_grayscale = take_screenshot()
+                        exchangewindow_x_coord, exchangewindow_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'collectables_exchange.png'))
+                        if exchangewindow_x_coord == False:
+                                break
+                        for i in range(0, 10): # 10 rows are displayed in a screen
+                                row_screenshot_grayscale = take_screenshot((exchangewindow_x_coord+int(EXCHANGE_TEXT_TO_ROWS_X_OFFSET / (1920 / monitor.width)), exchangewindow_y_coord+int(EXCHANGE_TEXT_TO_ROWS_Y_OFFSET / (1080 / monitor.height))+int((abs(int(ROWS_HEIGHT / (1080 / monitor.height))))*i), abs(int(ROWS_WIDTH / (1920 / monitor.width))), int(int(ROWS_HEIGHT / (1080 / monitor.height)))))
+                                # Check for rows that are not collected
+                                noexchange_x_coord, noexchange_y_coord = screenshot_template_match_topleftcoords(row_screenshot_grayscale, os.path.join(template_directory, 'gathering', 'no_exchange.png'))
+                                if noexchange_x_coord != False:
+                                        continue
+                                # If row can be turned in, click it
+                                mouse_move(coord_fudger_from_dimensions(exchangewindow_x_coord+int(EXCHANGE_TEXT_TO_ROWS_X_OFFSET / (1920 / monitor.width)), exchangewindow_y_coord+int(EXCHANGE_TEXT_TO_ROWS_Y_OFFSET / (1080 / monitor.height))+int((abs(int(ROWS_HEIGHT / (1080 / monitor.height))))*i), abs(int(ROWS_WIDTH / (1920 / monitor.width))), int(int(ROWS_HEIGHT / (1080 / monitor.height)))))
+                                mouse_press('left')
+                                # Wait for item request window to pop up
+                                sleep_fails = 0
+                                sleep_exit_condition = False
+                                while True:
+                                        time.sleep(ITEM_REQUEST_SLEEP)
+                                        screenshot_grayscale = take_screenshot()
+                                        request_x_coord, request_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'item_request.png'))
+                                        if request_x_coord != False:
+                                                break
+                                        sleep_fails += 1
+                                        if sleep_fails == 10:
+                                                sleep_exit_condition = True
+                                                break
+                                if sleep_exit_condition == True:
+                                        break
+                                # Right-click item to bring up turnin screen
+                                mouse_move(coord_fudger_from_dimensions(request_x_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET / (1920 / monitor.width)), request_y_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET / (1080 / monitor.height)), request_x_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET / (1920 / monitor.width))+abs(int(ITEM_REQUEST_WIDTH / (1920 / monitor.width))), request_y_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET / (1080 / monitor.height))+int(int(ITEM_REQUEST_HEIGHT / (1080 / monitor.height)))))
+                                mouse_press('right')
+                                # Left-click item within turnin screen
+                                mouse_move(coord_fudger_from_dimensions(request_x_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET / (1920 / monitor.width))+int(CLICK_TARGET_TO_BOX_X_OFFSET / (1920 / monitor.width)), request_y_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET / (1080 / monitor.height))+int(CLICK_TARGET_TO_BOX_Y_OFFSET / (1080 / monitor.height)), request_x_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET / (1920 / monitor.width))+int(CLICK_TARGET_TO_BOX_X_OFFSET / (1920 / monitor.width))+abs(int(BOX_SIDE / (1920 / monitor.width))), request_y_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET / (1080 / monitor.height))+int(CLICK_TARGET_TO_BOX_Y_OFFSET / (1080 / monitor.height))+int(int(BOX_SIDE / (1080 / monitor.height)))))
+                                mouse_press('left')
+                                # Left-click hand over button
+                                mouse_move(coord_fudger_from_dimensions(request_x_coord+int(ITEM_REQUEST_TO_HANDOVER_X_OFFSET / (1920 / monitor.width)), request_y_coord+int(ITEM_REQUEST_TO_HANDOVER_Y_OFFSET / (1080 / monitor.height)), request_x_coord+int(ITEM_REQUEST_TO_HANDOVER_X_OFFSET / (1920 / monitor.width))+abs(int(HANDOVER_WIDTH / (1920 / monitor.width))), request_y_coord+int(ITEM_REQUEST_TO_HANDOVER_Y_OFFSET / (1080 / monitor.height))+int(int(HANDOVER_HEIGHT / (1080 / monitor.height)))))
+                                mouse_press('left')
+                                # Move mouse out of the way for the next iteration
+                                mouse_move(coord_fudger_from_dimensions(0, 0, 10, 10))
+                        # Exit condition
+                        if i == 9: # i.e., if we scan through each row and find no rows to turnin
+                                break
+                                
         # Start up checking for relevant button locations
         while True:
                 time.sleep(5)
@@ -412,9 +482,9 @@ def collect(template_directory):
                         if collectwindow_x_coord != False:
                                 auto_collect(screenshot_grayscale, collectwindow_x_coord, collectwindow_y_coord, template_directory)
                         # State 2: Item turnin
-                        ## x_coord, y_coord...
-                        ## if x_coord != False:
-                        ## auto_item_request()
+                        exchangewindow_x_coord, exchangewindow_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'collectables_exchange.png'))
+                        if exchangewindow_x_coord != False:
+                                auto_exchange(exchangewindow_x_coord, exchangewindow_y_coord, template_directory)
                         # State 3: Aetherial reduction
                         ## This should involve template matching for the main reduction targets of aethersand in an inventory
                         time.sleep(1.0)
