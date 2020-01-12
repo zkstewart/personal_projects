@@ -227,9 +227,7 @@ def collect(template_directory):
                 gp = int(gp_number_find(template_directory))
                 # Start rotation
                 ## Cast impulsive appraisal
-                mouse_move(coord_fudger(impulsive_appraisal_x_coord, impulsive_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'impulsive_appraisal.png')))
-                mouse_press('left')
-                score = cast_sleep('impulsive_appraisal', 0)
+                score = cast_then_sleep('impulsive_appraisal', 0, impulsive_appraisal_x_coord, impulsive_appraisal_y_coord)
                 ## Branching point: Respond to discerning eye proc
                 proc = discerning_eye_procced(template_directory)
                 if proc == True:
@@ -237,86 +235,81 @@ def collect(template_directory):
                         for i in range(2):
                                 # Cast single mind if possible
                                 if gp >= 400: # This ensures we hold onto at least 200gp if possible for an utmost caution or discerning eye later
-                                        mouse_move(coord_fudger(single_mind_x_coord, single_mind_y_coord, os.path.join(template_directory, 'gathering', 'single_mind.png')))
-                                        mouse_press('left')
                                         gp -= 200
-                                        cast_sleep('single_mind', score)
+                                        cast_then_sleep('single_mind', score, single_mind_x_coord, single_mind_y_coord)
                                 # Cast instinctual appraisal
-                                mouse_move(coord_fudger(instinctual_appraisal_x_coord, instinctual_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'instinctual_appraisal.png')))
-                                mouse_press('left')
-                                score = cast_sleep('instinctual_appraisal', score)
+                                score = cast_then_sleep('instinctual_appraisal', score, instinctual_appraisal_x_coord, instinctual_appraisal_y_coord)
                         ## Branching point: Respond to collectability
                         top_path_collectability_branch(gp)
                 else:
                         # Cast impulsive appraisal
-                        mouse_move(coord_fudger(impulsive_appraisal_x_coord, impulsive_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'impulsive_appraisal.png')))
-                        mouse_press('left')
-                        score = cast_sleep('impulsive_appraisal', score)
+                        score = cast_then_sleep('impulsive_appraisal', score, impulsive_appraisal_x_coord, impulsive_appraisal_y_coord)
                         ## Branching point: Respond to discerning eye proc
                         proc = discerning_eye_procced(template_directory)
                         if proc == True:
                                 # Cast single mind if possible
                                 if gp >= 400:
-                                        mouse_move(coord_fudger(single_mind_x_coord, single_mind_y_coord, os.path.join(template_directory, 'gathering', 'single_mind.png')))
-                                        mouse_press('left')
                                         gp -= 200
-                                        cast_sleep('single_mind', score)
+                                        cast_then_sleep('single_mind', score, single_mind_x_coord, single_mind_y_coord)
                                 # Cast 1x instinctual appraisal
-                                mouse_move(coord_fudger(instinctual_appraisal_x_coord, instinctual_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'instinctual_appraisal.png')))
-                                mouse_press('left')
-                                score = cast_sleep('instinctual_appraisal', score)
+                                score = cast_then_sleep('instinctual_appraisal', score, instinctual_appraisal_x_coord, instinctual_appraisal_y_coord)
                                 ## Branching point: Respond to collectability
                                 top_path_collectability_branch(gp)
                         else:
                                 # Cast impulsive appraisal
-                                mouse_move(coord_fudger(impulsive_appraisal_x_coord, impulsive_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'impulsive_appraisal.png')))
-                                mouse_press('left')
-                                score = cast_sleep('impulsive_appraisal', score)
+                                score = cast_then_sleep('impulsive_appraisal', score, impulsive_appraisal_x_coord, impulsive_appraisal_y_coord)
                                 ## Branching point: Respond to discerning eye proc
                                 proc = discerning_eye_procced(template_directory)
                                 if proc == True:
                                         middle_branch_final(gp)
                                 else:
+                                        # Cast utmost caution if possible [This ordering is a bit different to the proper rotation but utmost caution > discerning eye in some cases to prevent gathering nil items when GP is sub 600 to start
+                                        if gp >= 200:
+                                                gp -= 200
+                                                cast_then_sleep('utmost_caution', score, utmost_caution_x_coord, utmost_caution_y_coord)
                                         # Cast discerning eye if possible
                                         if gp >= 200:
-                                                mouse_move(coord_fudger(discerning_eye_x_coord, discerning_eye_y_coord, os.path.join(template_directory, 'gathering', 'discerning_eye.png')))
-                                                mouse_press('left')
                                                 gp -= 200
-                                                cast_sleep('discerning_eye', score)
-                                        # Cast utmost caution if possible
-                                        if gp >= 200:
-                                                mouse_move(coord_fudger(utmost_caution_x_coord, utmost_caution_y_coord, os.path.join(template_directory, 'gathering', 'utmost_caution.png')))
-                                                mouse_press('left')
-                                                gp -= 200
-                                                cast_sleep('utmost_caution', score)
+                                                cast_then_sleep('discerning_eye', score, discerning_eye_x_coord, discerning_eye_y_coord)
                                         # Cast single mind if possible
                                         if gp >= 200:
-                                                mouse_move(coord_fudger(single_mind_x_coord, single_mind_y_coord, os.path.join(template_directory, 'gathering', 'single_mind.png')))
-                                                mouse_press('left')
                                                 gp -= 200
-                                                cast_sleep('single_mind', score)
+                                                cast_then_sleep('single_mind', score, single_mind_x_coord, single_mind_y_coord)
                                         # Cast methodical appraisal
-                                        mouse_move(coord_fudger(methodical_appraisal_x_coord, methodical_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'methodical_appraisal.png')))
-                                        mouse_press('left')
-                                        score = cast_sleep('methodical_appraisal', score)
+                                        score = cast_then_sleep('methodical_appraisal', score, methodical_appraisal_x_coord, methodical_appraisal_y_coord)
                                         # Collect
                                         collect_button_loop()
-        def cast_sleep(skill_name, collectability):
-                CAST_SLEEP_TIME = 0.2
+        def cast_then_sleep(skill_name, collectability, x_coord, y_coord):
+                CAST_SLEEP_TIME = 2.0
+                BUFF_SLEEP_TIME = 1.0
+                NUM_OF_ALLOWED_FAILS = 3
+                sleep_fails = 0
                 if skill_name in ['utmost_caution', 'single_mind', 'discerning_eye']:
                         while True:
+                                if sleep_fails == 0: # This system attempts to allow the program to re-cast skills that were pressed during a lag spike that were not recognised by the game
+                                        mouse_move(coord_fudger(x_coord, y_coord, os.path.join(template_directory, 'gathering', skill_name + '.png')))
+                                        mouse_press('left')
+                                time.sleep(BUFF_SLEEP_TIME)
                                 screenshot_grayscale = take_screenshot()
-                                buff_x_coord, buff_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', skill_name + '.png'))
-                                if buff_x_coord == False: # Buff should be present when skill is complete
-                                        time.sleep(CAST_SLEEP_TIME)
+                                buff_x_coord, buff_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', skill_name + '_buff.png'))
+                                if buff_x_coord == False and sleep_fails < NUM_OF_ALLOWED_FAILS: # Buff should be present when skill is complete
+                                        sleep_fails += 1
+                                elif buff_x_coord == False and sleep_fails == NUM_OF_ALLOWED_FAILS:
+                                        sleep_fails = 0
                                 else:
                                         break
                 else:
                         while True:
-                                screenshot_grayscale = take_screenshot()
+                                if sleep_fails == 0: # This system attempts to allow the program to re-cast skills that were pressed during a lag spike that were not recognised by the game
+                                        mouse_move(coord_fudger(x_coord, y_coord, os.path.join(template_directory, 'gathering', skill_name + '.png')))
+                                        mouse_press('left')
+                                time.sleep(CAST_SLEEP_TIME)
                                 score = int(collect_score_find(template_directory))
-                                if int(score) == collectability: # Collectability score should increase when skill is complete
-                                        time.sleep(CAST_SLEEP_TIME)
+                                if int(score) == collectability and sleep_fails < NUM_OF_ALLOWED_FAILS: # Collectability score should increase when skill is complete
+                                        sleep_fails += 1
+                                        continue
+                                elif int(score) == collectability and sleep_fails == NUM_OF_ALLOWED_FAILS:
+                                        sleep_fails = 0
                                 else:
                                         return score
         def collect_button_loop():
@@ -333,11 +326,15 @@ def collect(template_directory):
                                 screenshot_grayscale = take_screenshot()
                                 yes_button_x_coord, yes_button_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'yes_button.png'))
                                 if yes_button_x_coord == False:
-                                        time.sleep(YES_SLEEP_TIME)
-                                        yes_button_fails += 1
-                                        if yes_button_fails == 5:
+                                        collectwindow_x_coord, collectwindow_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'wear.png'))
+                                        if collectwindow_x_coord == False:
                                                 break
-                                        continue
+                                        else:
+                                                time.sleep(YES_SLEEP_TIME)
+                                                yes_button_fails += 1
+                                                if yes_button_fails == 5:
+                                                        break
+                                                continue
                                 mouse_move(coord_fudger(yes_button_x_coord, yes_button_y_coord, os.path.join(template_directory, 'gathering', 'yes_button.png')))
                                 mouse_press('left')
                                 break
@@ -349,13 +346,9 @@ def collect(template_directory):
                 elif score > 390:
                         # Cast single mind if possible
                         if gp >= 200:
-                                mouse_move(coord_fudger(single_mind_x_coord, single_mind_y_coord, os.path.join(template_directory, 'gathering', 'single_mind.png')))
-                                mouse_press('left')
-                                cast_sleep('single_mind', score)
+                                cast_then_sleep('single_mind', score, single_mind_x_coord, single_mind_y_coord)
                         # Cast stickler
-                        mouse_move(coord_fudger(stickler_x_coord, stickler_y_coord, os.path.join(template_directory, 'gathering', 'stickler.png')))
-                        mouse_press('left')
-                        score = cast_sleep('stickler', score)
+                        score = cast_then_sleep('stickler', score, stickler_x_coord, stickler_y_coord)
                         # Collect
                         collect_button_loop()
                 else:
@@ -366,24 +359,16 @@ def collect(template_directory):
                 score = int(collect_score_find(template_directory))
                 # Cast utmost caution if possible
                 if gp >= 200:
-                        mouse_move(coord_fudger(utmost_caution_x_coord, utmost_caution_y_coord, os.path.join(template_directory, 'gathering', 'utmost_caution.png')))
-                        mouse_press('left')
                         gp -= 200
-                        cast_sleep('utmost_caution', score)
+                        cast_then_sleep('utmost_caution', score, utmost_caution_x_coord, utmost_caution_y_coord)
                 # Cast single mind if possible
                 if gp >= 200:
-                        mouse_move(coord_fudger(single_mind_x_coord, single_mind_y_coord, os.path.join(template_directory, 'gathering', 'single_mind.png')))
-                        mouse_press('left')
-                        cast_sleep('single_mind', score)
+                        cast_then_sleep('single_mind', score, single_mind_x_coord, single_mind_y_coord)
                 # Cast methodical appraisal
-                mouse_move(coord_fudger(methodical_appraisal_x_coord, methodical_appraisal_y_coord, os.path.join(template_directory, 'gathering', 'methodical_appraisal.png')))
-                mouse_press('left')
-                score = cast_sleep('methodical_appraisal', score)
+                score = cast_then_sleep('methodical_appraisal', score, methodical_appraisal_x_coord, methodical_appraisal_y_coord)
                 # Collect
                 collect_button_loop()
-        # Monitor dimensions
-        #monitor = screeninfo.get_monitors()[0]
-        # Continual checking for relevant button locations
+        # Start up checking for relevant button locations
         while True:
                 time.sleep(5)
                 screenshot_grayscale = take_screenshot()
@@ -433,7 +418,6 @@ def collect(template_directory):
                         # State 3: Aetherial reduction
                         ## This should involve template matching for the main reduction targets of aethersand in an inventory
                         time.sleep(1.0)
-                
 
 def discerning_eye_procced(template_directory):
         screenshot_grayscale = take_screenshot()

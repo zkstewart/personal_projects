@@ -374,7 +374,7 @@ def main():
         # Single monitor mode
         if len(screeninfo.get_monitors()) == 1:
                 single_monitor_mode = True
-                SINGLE_MONITOR_DELAY = 10
+                SINGLE_MONITOR_DELAY = 5
         else:
                 single_monitor_mode = False
         # Program start-up
