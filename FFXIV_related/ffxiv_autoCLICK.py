@@ -382,9 +382,9 @@ def collect(template_directory):
                 collect_button_loop()
         def auto_exchange(exchangewindow_x_coord, exchangewindow_y_coord, template_directory):
                 EXCHANGE_TEXT_TO_ROWS_X_OFFSET = 20
-                EXCHANGE_TEXT_TO_ROWS_Y_OFFSET = 95
-                ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET = 10
-                ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET = 40
+                EXCHANGE_TEXT_TO_ROWS_Y_OFFSET = 97
+                ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET = 13
+                ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET = 43
                 CLICK_TARGET_TO_BOX_X_OFFSET = 5
                 CLICK_TARGET_TO_BOX_Y_OFFSET = 0
                 ITEM_REQUEST_TO_HANDOVER_X_OFFSET = 5
@@ -392,8 +392,8 @@ def collect(template_directory):
                 ##
                 ROWS_WIDTH = 810
                 ROWS_HEIGHT = 24
-                ITEM_REQUEST_WIDTH = 35
-                ITEM_REQUEST_HEIGHT = 35
+                ITEM_REQUEST_WIDTH = 30
+                ITEM_REQUEST_HEIGHT = 30
                 BOX_SIDE = 35
                 HANDOVER_WIDTH = 90
                 HANDOVER_HEIGHT = 10
@@ -407,6 +407,10 @@ def collect(template_directory):
                         screenshot_grayscale = take_screenshot()
                         exchangewindow_x_coord, exchangewindow_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'collectables_exchange.png'))
                         if exchangewindow_x_coord == False:
+                                break
+                        # Cancel turnins if scrips are full
+                        full_scrips_x_coord, full_scrips_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'full_scrips.png'))
+                        if full_scrips_x_coord != False:
                                 break
                         for i in range(0, 10): # 10 rows are displayed in a screen
                                 row_screenshot_grayscale = take_screenshot((exchangewindow_x_coord+int(EXCHANGE_TEXT_TO_ROWS_X_OFFSET / (1920 / monitor.width)), exchangewindow_y_coord+int(EXCHANGE_TEXT_TO_ROWS_Y_OFFSET / (1080 / monitor.height))+int((abs(int(ROWS_HEIGHT / (1080 / monitor.height))))*i), abs(int(ROWS_WIDTH / (1920 / monitor.width))), int(int(ROWS_HEIGHT / (1080 / monitor.height)))))
