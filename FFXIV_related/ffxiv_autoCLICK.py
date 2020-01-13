@@ -79,6 +79,14 @@ def mouse_press(button):
         time.sleep(sleepTime)
         mouse_up(button.lower())
 
+def mouse_click(button):
+        if button.lower() not in ['left', 'right', 'middle']:
+                print('mouse_press: button not recognised; coding error')
+                quit()
+        mouse_down(button.lower(), 0.20)
+        time.sleep(0.20)
+        mouse_up(button.lower(), 0.20)
+
 ## Keylogger-related
 def start_key_logger():
         q = queue.Queue()
@@ -380,17 +388,18 @@ def collect(template_directory):
                 CLICK_TARGET_TO_BOX_X_OFFSET = 5
                 CLICK_TARGET_TO_BOX_Y_OFFSET = 0
                 ITEM_REQUEST_TO_HANDOVER_X_OFFSET = 5
-                ITEM_REQUEST_TO_HANDOVER_Y_OFFSET = 90
+                ITEM_REQUEST_TO_HANDOVER_Y_OFFSET = 95
                 ##
                 ROWS_WIDTH = 810
-                ROWS_HEIGHT = 25
-                ITEM_REQUEST_WIDTH = 40
-                ITEM_REQUEST_HEIGHT = 40
+                ROWS_HEIGHT = 24
+                ITEM_REQUEST_WIDTH = 35
+                ITEM_REQUEST_HEIGHT = 35
                 BOX_SIDE = 35
                 HANDOVER_WIDTH = 90
-                HANDOVER_HEIGHT = 17
+                HANDOVER_HEIGHT = 10
                 ##
                 ITEM_REQUEST_SLEEP = 0.2
+                END_LOOP_SLEEP = 0.5
                 # Monitor dimensions
                 monitor = screeninfo.get_monitors()[0]
                 # Scan through collectable exchange screen for items to turn in
@@ -402,12 +411,12 @@ def collect(template_directory):
                         for i in range(0, 10): # 10 rows are displayed in a screen
                                 row_screenshot_grayscale = take_screenshot((exchangewindow_x_coord+int(EXCHANGE_TEXT_TO_ROWS_X_OFFSET / (1920 / monitor.width)), exchangewindow_y_coord+int(EXCHANGE_TEXT_TO_ROWS_Y_OFFSET / (1080 / monitor.height))+int((abs(int(ROWS_HEIGHT / (1080 / monitor.height))))*i), abs(int(ROWS_WIDTH / (1920 / monitor.width))), int(int(ROWS_HEIGHT / (1080 / monitor.height)))))
                                 # Check for rows that are not collected
-                                noexchange_x_coord, noexchange_y_coord = screenshot_template_match_topleftcoords(row_screenshot_grayscale, os.path.join(template_directory, 'gathering', 'no_exchange.png'))
+                                noexchange_x_coord, noexchange_y_coord = screenshot_template_match_topleftcoords(row_screenshot_grayscale, os.path.join(template_directory, 'gathering', 'no_exchange.png'), threshold=0.95)
                                 if noexchange_x_coord != False:
                                         continue
                                 # If row can be turned in, click it
                                 mouse_move(coord_fudger_from_dimensions(exchangewindow_x_coord+int(EXCHANGE_TEXT_TO_ROWS_X_OFFSET / (1920 / monitor.width)), exchangewindow_y_coord+int(EXCHANGE_TEXT_TO_ROWS_Y_OFFSET / (1080 / monitor.height))+int((abs(int(ROWS_HEIGHT / (1080 / monitor.height))))*i), abs(int(ROWS_WIDTH / (1920 / monitor.width))), int(int(ROWS_HEIGHT / (1080 / monitor.height)))))
-                                mouse_press('left')
+                                mouse_click('left')
                                 # Wait for item request window to pop up
                                 sleep_fails = 0
                                 sleep_exit_condition = False
@@ -424,16 +433,21 @@ def collect(template_directory):
                                 if sleep_exit_condition == True:
                                         break
                                 # Right-click item to bring up turnin screen
-                                mouse_move(coord_fudger_from_dimensions(request_x_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET / (1920 / monitor.width)), request_y_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET / (1080 / monitor.height)), request_x_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET / (1920 / monitor.width))+abs(int(ITEM_REQUEST_WIDTH / (1920 / monitor.width))), request_y_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET / (1080 / monitor.height))+int(int(ITEM_REQUEST_HEIGHT / (1080 / monitor.height)))))
-                                mouse_press('right')
+                                turnin_coords = coord_fudger_from_dimensions(request_x_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET / (1920 / monitor.width)), request_y_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET / (1080 / monitor.height)), int(ITEM_REQUEST_WIDTH / (1920 / monitor.width)), int(ITEM_REQUEST_HEIGHT / (1080 / monitor.height)))
+                                mouse_move(turnin_coords) # We need to use the fudged coords below to derive our offsets
+                                mouse_click('right')
                                 # Left-click item within turnin screen
-                                mouse_move(coord_fudger_from_dimensions(request_x_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET / (1920 / monitor.width))+int(CLICK_TARGET_TO_BOX_X_OFFSET / (1920 / monitor.width)), request_y_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET / (1080 / monitor.height))+int(CLICK_TARGET_TO_BOX_Y_OFFSET / (1080 / monitor.height)), request_x_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET / (1920 / monitor.width))+int(CLICK_TARGET_TO_BOX_X_OFFSET / (1920 / monitor.width))+abs(int(BOX_SIDE / (1920 / monitor.width))), request_y_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET / (1080 / monitor.height))+int(CLICK_TARGET_TO_BOX_Y_OFFSET / (1080 / monitor.height))+int(int(BOX_SIDE / (1080 / monitor.height)))))
-                                mouse_press('left')
+                                box_coords = coord_fudger_from_dimensions(turnin_coords[0]+int(CLICK_TARGET_TO_BOX_X_OFFSET / (1920 / monitor.width)), turnin_coords[1]+int(CLICK_TARGET_TO_BOX_Y_OFFSET / (1080 / monitor.height)), int(BOX_SIDE / (1920 / monitor.width)), int(BOX_SIDE / (1080 / monitor.height)))
+                                mouse_move(box_coords)
+                                mouse_click('left')
                                 # Left-click hand over button
-                                mouse_move(coord_fudger_from_dimensions(request_x_coord+int(ITEM_REQUEST_TO_HANDOVER_X_OFFSET / (1920 / monitor.width)), request_y_coord+int(ITEM_REQUEST_TO_HANDOVER_Y_OFFSET / (1080 / monitor.height)), request_x_coord+int(ITEM_REQUEST_TO_HANDOVER_X_OFFSET / (1920 / monitor.width))+abs(int(HANDOVER_WIDTH / (1920 / monitor.width))), request_y_coord+int(ITEM_REQUEST_TO_HANDOVER_Y_OFFSET / (1080 / monitor.height))+int(int(HANDOVER_HEIGHT / (1080 / monitor.height)))))
-                                mouse_press('left')
+                                handover_coords = coord_fudger_from_dimensions(request_x_coord+int(ITEM_REQUEST_TO_HANDOVER_X_OFFSET / (1920 / monitor.width)), request_y_coord+int(ITEM_REQUEST_TO_HANDOVER_Y_OFFSET / (1080 / monitor.height)), int(HANDOVER_WIDTH / (1920 / monitor.width)), int(HANDOVER_HEIGHT / (1080 / monitor.height)))
+                                mouse_move(handover_coords)
+                                mouse_click('left')
                                 # Move mouse out of the way for the next iteration
                                 mouse_move(coord_fudger_from_dimensions(0, 0, 10, 10))
+                                time.sleep(END_LOOP_SLEEP)
+                                break # Breaking the loop here means we'll continue to turn in the same item until it runs out
                         # Exit condition
                         if i == 9: # i.e., if we scan through each row and find no rows to turnin
                                 break
