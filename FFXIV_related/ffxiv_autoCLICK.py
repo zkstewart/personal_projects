@@ -643,7 +643,7 @@ def main():
         '''It will be ideal to somehow store this in a semi-permanent way within
         the code; need to learn how to do that first!
         '''
-        template_directory = r'C:\Bioinformatics\GitHub\personal_projects\FFXIV_related\template_images\autoclick'
+        template_directory = r'D:\Libraries\Documents\GitHub\personal_projects\FFXIV_related\template_images\autoclick'
         # Hard-coded declaration of pre-programmed craft arguments
         preprogrammed_list = ['instacraft', 'collect']
         
