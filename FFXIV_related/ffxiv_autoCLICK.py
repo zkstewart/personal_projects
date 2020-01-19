@@ -79,13 +79,13 @@ def mouse_press(button):
         time.sleep(sleepTime)
         mouse_up(button.lower())
 
-def mouse_click(button):
+def mouse_click(button, pause=0.20):
         if button.lower() not in ['left', 'right', 'middle']:
                 print('mouse_press: button not recognised; coding error')
                 quit()
-        mouse_down(button.lower(), 0.20)
-        time.sleep(0.20)
-        mouse_up(button.lower(), 0.20)
+        mouse_down(button.lower(), pause)
+        time.sleep(pause)
+        mouse_up(button.lower(), pause)
 
 ## Keylogger-related
 def start_key_logger():
@@ -206,7 +206,7 @@ def craft(skillbar_coords, wait_times, num_iterations, template_directory):
                 if collectwindow_x_coord != False:
                         mouse_move([int(collectwindow_x_coord+int(COLLECTIBLE_X_OFFSET / (1920 / monitor.width))), int(collectwindow_y_coord+int(COLLECTIBLE_Y_OFFSET / (1080 / monitor.height)))])
                         mouse_press('left')
-                        sleepTime=variableTime(4.0)
+                        sleepTime=variableTime(2.0)
                         time.sleep(sleepTime)
 
 def coord_fudger_from_image(x_coord_topleft, y_coord_topleft, image_file):
@@ -385,16 +385,16 @@ def collect(template_directory):
                 EXCHANGE_TEXT_TO_ROWS_Y_OFFSET = 97
                 ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET = 13
                 ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET = 43
-                CLICK_TARGET_TO_BOX_X_OFFSET = 5
-                CLICK_TARGET_TO_BOX_Y_OFFSET = 0
-                ITEM_REQUEST_TO_HANDOVER_X_OFFSET = 5
-                ITEM_REQUEST_TO_HANDOVER_Y_OFFSET = 95
+                CLICK_TARGET_TO_BOX_X_OFFSET = 15
+                CLICK_TARGET_TO_BOX_Y_OFFSET = 30
+                ITEM_REQUEST_TO_HANDOVER_X_OFFSET = 15
+                ITEM_REQUEST_TO_HANDOVER_Y_OFFSET = 105
                 ##
                 ROWS_WIDTH = 810
                 ROWS_HEIGHT = 24
                 ITEM_REQUEST_WIDTH = 30
                 ITEM_REQUEST_HEIGHT = 30
-                BOX_SIDE = 35
+                BOX_SIDE = 20
                 HANDOVER_WIDTH = 90
                 HANDOVER_HEIGHT = 10
                 ##
@@ -420,12 +420,11 @@ def collect(template_directory):
                                         continue
                                 # If row can be turned in, click it
                                 mouse_move(coord_fudger_from_dimensions(exchangewindow_x_coord+int(EXCHANGE_TEXT_TO_ROWS_X_OFFSET / (1920 / monitor.width)), exchangewindow_y_coord+int(EXCHANGE_TEXT_TO_ROWS_Y_OFFSET / (1080 / monitor.height))+int((abs(int(ROWS_HEIGHT / (1080 / monitor.height))))*i), abs(int(ROWS_WIDTH / (1920 / monitor.width))), int(int(ROWS_HEIGHT / (1080 / monitor.height)))))
-                                mouse_click('left')
+                                mouse_click('left', 0.10)
                                 # Wait for item request window to pop up
                                 sleep_fails = 0
                                 sleep_exit_condition = False
                                 while True:
-                                        time.sleep(ITEM_REQUEST_SLEEP)
                                         screenshot_grayscale = take_screenshot()
                                         request_x_coord, request_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'item_request.png'))
                                         if request_x_coord != False:
@@ -439,18 +438,15 @@ def collect(template_directory):
                                 # Right-click item to bring up turnin screen
                                 turnin_coords = coord_fudger_from_dimensions(request_x_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_X_OFFSET / (1920 / monitor.width)), request_y_coord+int(ITEM_REQUEST_TO_CLICK_TARGET_Y_OFFSET / (1080 / monitor.height)), int(ITEM_REQUEST_WIDTH / (1920 / monitor.width)), int(ITEM_REQUEST_HEIGHT / (1080 / monitor.height)))
                                 mouse_move(turnin_coords) # We need to use the fudged coords below to derive our offsets
-                                mouse_click('right')
+                                mouse_click('right', 0.10)
                                 # Left-click item within turnin screen
-                                box_coords = coord_fudger_from_dimensions(turnin_coords[0]+int(CLICK_TARGET_TO_BOX_X_OFFSET / (1920 / monitor.width)), turnin_coords[1]+int(CLICK_TARGET_TO_BOX_Y_OFFSET / (1080 / monitor.height)), int(BOX_SIDE / (1920 / monitor.width)), int(BOX_SIDE / (1080 / monitor.height)))
-                                mouse_move(box_coords)
-                                mouse_click('left')
+                                mouse_move([int(turnin_coords[0]+int(CLICK_TARGET_TO_BOX_X_OFFSET / (1920 / monitor.width))), int(turnin_coords[1]+int(CLICK_TARGET_TO_BOX_Y_OFFSET / (1080 / monitor.height)))])
+                                mouse_click('left', 0.10)
                                 # Left-click hand over button
-                                handover_coords = coord_fudger_from_dimensions(request_x_coord+int(ITEM_REQUEST_TO_HANDOVER_X_OFFSET / (1920 / monitor.width)), request_y_coord+int(ITEM_REQUEST_TO_HANDOVER_Y_OFFSET / (1080 / monitor.height)), int(HANDOVER_WIDTH / (1920 / monitor.width)), int(HANDOVER_HEIGHT / (1080 / monitor.height)))
-                                mouse_move(handover_coords)
-                                mouse_click('left')
+                                mouse_move([int(request_x_coord+int(ITEM_REQUEST_TO_HANDOVER_X_OFFSET / (1920 / monitor.width))), int(request_y_coord+int(ITEM_REQUEST_TO_HANDOVER_Y_OFFSET / (1080 / monitor.height)))])
+                                mouse_click('left', 0.10)
                                 # Move mouse out of the way for the next iteration
                                 mouse_move(coord_fudger_from_dimensions(0, 0, 10, 10))
-                                time.sleep(END_LOOP_SLEEP)
                                 break # Breaking the loop here means we'll continue to turn in the same item until it runs out
                         # Exit condition
                         if i == 9: # i.e., if we scan through each row and find no rows to turnin
@@ -458,7 +454,6 @@ def collect(template_directory):
                                 
         # Start up checking for relevant button locations
         while True:
-                time.sleep(5)
                 screenshot_grayscale = take_screenshot()
                 discerning_eye_x_coord, discerning_eye_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'discerning_eye.png'))
                 impulsive_appraisal_x_coord, impulsive_appraisal_y_coord = screenshot_template_match_topleftcoords(screenshot_grayscale, os.path.join(template_directory, 'gathering', 'impulsive_appraisal.png'))
@@ -470,24 +465,31 @@ def collect(template_directory):
                 # Validate that all buttons were found
                 valid_button = button_not_found_error(discerning_eye_x_coord, 'Discerning Eye')
                 if valid_button == False:
+                        time.sleep(5)
                         continue
                 valid_button = button_not_found_error(impulsive_appraisal_x_coord, 'Impulsive Appraisal')
                 if valid_button == False:
+                        time.sleep(5)
                         continue
                 valid_button = button_not_found_error(instinctual_appraisal_x_coord, 'Instinctual Appraisal')
                 if valid_button == False:
+                        time.sleep(5)
                         continue
                 valid_button = button_not_found_error(methodical_appraisal_x_coord, 'Methodical Appraisal')
                 if valid_button == False:
+                        time.sleep(5)
                         continue
                 valid_button = button_not_found_error(single_mind_x_coord, 'Single Mind')
                 if valid_button == False:
+                        time.sleep(5)
                         continue
                 valid_button = button_not_found_error(stickler_x_coord, 'Stickler')
                 if valid_button == False:
+                        time.sleep(5)
                         continue
                 valid_button = button_not_found_error(utmost_caution_x_coord, 'Utmost Caution')
                 if valid_button == False:
+                        time.sleep(5)
                         continue
                 break
         # Main operation loop

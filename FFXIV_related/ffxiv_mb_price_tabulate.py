@@ -369,6 +369,8 @@ def main():
         QTY_WIDTH = 57
         HQ_WIDTH = 40
         NAME_HEIGHT = 30
+        # Arbitrary sleep lengths
+        GENERIC_BUFFER = 0.5
         # Obtain system-specific values
         monitor = screeninfo.get_monitors()[0] # This is our main monitor's dimensions
         # Single monitor mode
@@ -435,7 +437,7 @@ def main():
                         keyboardType(item, None)
                         time.sleep(0.5) # Can be necessary for long names if stuff lags
                         keyboardPressSequential(['enter'], None, None)
-                        time.sleep(1)
+                        time.sleep(GENERIC_BUFFER)
                         # Figure out if we have no results
                         wait_for_slow_response(os.path.join(template_directory, 'still_loading_blank.png'))
                         match_screenshot_grayscale = take_screenshot()
@@ -455,7 +457,7 @@ def main():
                         # Click item
                         while True:
                                 mousePress([int(item_search_x_coord+int(ITEM_CLICK_X_OFFSET / (1920 / monitor.width))), int(item_search_y_coord+int(ITEM_CLICK_Y_OFFSET / (1920 / monitor.width))+int((abs(int(NAME_HEIGHT / (1080 / monitor.height))))*item_index))], 'left', 2, 0.5, 0.5) ## TESTING
-                                time.sleep(1)
+                                time.sleep(GENERIC_BUFFER)
                                 # Detect "Please wait and try..." statements
                                 wait_for_slow_response(os.path.join(template_directory, 'item_search_loading_blank.png'))
                                 screenshot_grayscale = take_screenshot()
