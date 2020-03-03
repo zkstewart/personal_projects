@@ -13,7 +13,7 @@ class Tests:
                 schema = Schematic(self.input_file).parse_file_to_text()
                 'Not raising an exception constitutes a pass for this test'
                 self.test_1_result = schema
-                
+
 class Validation:
         def __init__(self):
                 pass
@@ -124,7 +124,7 @@ class Schematic:
                                                         self.table[level_name][room_name] = []
                                                 self.table[level_name][room_name].append([device, part, id_num, connection_num])
         
-        def table_to_tsv(self):
+        def table_to_tsv(self, output=None):
                 self.tsv = []
                 for level_name in self.table:
                         self.tsv.append(level_name)
@@ -135,6 +135,11 @@ class Schematic:
                                                 self.tsv.append(room_name + '\t' + '\t'.join(self.table[level_name][room_name][i]))
                                         else:
                                                 self.tsv.append('\t' + '\t'.join(self.table[level_name][room_name][i]))
+                if output != None:
+                        try:
+                                Validation.not_file_exists(output)
+                        except:
+                                print('Failed to produce tsv output due to file exists error; data only stored in attribute.')
 
 def main():
         def validate_args(args):
