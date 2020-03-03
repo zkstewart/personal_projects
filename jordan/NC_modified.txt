@@ -1,0 +1,18 @@
+## Level 2 ##
+Room 1 - 14	D05
+Dining	D07
+Sitting	D07
+Visitor	D07
+
+##
+
+D05
+Bed Call Button	AC-IPR-CBN/P	1	.
+Auxiliary Input	AC-DSKT2	.	1
+Toilet Call Point	AC-IPR-CBN	2	.
+Shower Call Button	AC-SCB	.	2
+
+D07
+Nurse Call Button	AC-IPR-CBN	7	.
+
+##
