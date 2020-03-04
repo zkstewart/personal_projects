@@ -1,18 +1,9 @@
 #! python3
 # schematic_to_excel.py
-# Converts a text file containing a condensed text format representing a nursecalle
+# Converts a text file containing a condensed text format representing a nursecall
 # schematic into an expanded Excel sheet with rich formating.
 
 import os, argparse, re, xlsxwriter
-
-class Tests:
-        def __init__(self, input_file):
-                self.input_file = input_file
-        
-        def run_test_1(self):
-                schema = Schematic(self.input_file).parse_file_to_table()
-                'Not raising an exception constitutes a pass for this test'
-                self.test_1_result = schema
 
 class Validation:
         def __init__(self):
@@ -163,8 +154,6 @@ class Schematic:
                 if output != None:
                         try:
                                 Validation.not_file_exists(output)
-                                if not output.lower().endswith('.xlsx'):
-                                        output += '.xlsx'
                         except:
                                 print('Failed to produce Excel output due to file exists error; method call not completed')
                                 return None
@@ -292,10 +281,15 @@ class Schematic:
 
 def main():
         def validate_args(args):
+                # Validate that arguments were provided
+                for key, value in vars(args).items():
+                        if value == None and key != 'output':
+                                raise Exception(key + ' arg was not provided; fix and try again.')
                 # Validate that input file exists
                 Validation.file_exists(args.input)
                 # Validate that output file does not exist
-                Validation.not_file_exists(args.output)
+                if args.output != None:
+                        Validation.not_file_exists(args.output)
         
         usage = '''%(prog)s will convert condensed schematic text format into
         an expanded and richly formatted Excel sheet. Provide the arguments
@@ -312,7 +306,7 @@ def main():
                        .xlsx suffix so Excel recognises file).
                        ''')
         args = p.parse_args()
-        args = validate_args(args)
+        validate_args(args)
         
         # Create Schematic object
         schema = Schematic(args.input)
@@ -321,16 +315,7 @@ def main():
         # Convert table to basic tsv format
         schema.table_to_tsv()
         # Convert tsv to an xlsxwriter-formatted Excel object
-        schema.table_to_excel()
+        schema.table_to_excel(args.output)
 
-def test():
-        test_1_file = r'C:\Users\Zac\Desktop\Jordan_coding\PDF2Table\NC_modified.txt'
-        test = Tests(test_1_file)
-        test.run_test_1()
-        
 if __name__ == '__main__':
-        testing = True # This is only accessible by modifying the code
-        if testing == True:
-                test()
-        else:
-                main()
+        main()
