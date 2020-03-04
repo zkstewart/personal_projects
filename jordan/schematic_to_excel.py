@@ -40,7 +40,7 @@ class Schematic:
                 individual_pattern = re.compile(r'(.+?)\t(.*?D\d{1,10})$')
                 door_code_pattern = re.compile(r'(D\d{1,10},?)+')
                 door_code_section2_pattern = re.compile(r'^(D\d{1,10})$') # , is not allowed in section 2 and must be whole line
-                quad_pattern = re.compile(r'([^\t]+)\t([^\t]+)\t([^\t]+)\t(\d{1,10}|\.)$')
+                #quad_pattern = re.compile(r'([^\t]+)\t([^\t]+)\t([^\t]+)\t(\d{1,10}|\.)$')
                 # Parse file
                 with open(self.file_location) as file_in:
                         # Break file up into sections
@@ -106,10 +106,10 @@ class Schematic:
                                         continue
                                 if recent_name == '':
                                         raise Exception('Section two does not begin with an individual door code e.g., "D05"; fix the file.')
-                                # Validate that section 2 quad lines are correctly formatted
-                                quad_hit = re.search(quad_pattern, l)
-                                if quad_hit == None:
-                                        raise Exception('Section two does not have proper "id\tfull_name\tnumber" format for line "' + l + '"; fix the file.')
+                                ## TURNED OFF: # Validate that section 2 quad lines are correctly formatted
+                                #quad_hit = re.search(quad_pattern, l)
+                                #if quad_hit == None:
+                                #        raise Exception('Section two does not have proper "id\tfull_name\tnumber" format for line "' + l + '"; fix the file.')
                                 # Associate device:part:id:connection quad to its parent door code in our dictionary structure
                                 quad = l.split('\t')
                                 for i in range(len(quad)):
