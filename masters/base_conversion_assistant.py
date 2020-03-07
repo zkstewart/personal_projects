@@ -7,6 +7,36 @@ Created on Sat Mar  7 12:28:07 2020
 
 import argparse, pyperclip
 
+class SimpleCalculator:
+        def __init__(self, number1, operator, number2, is_decimal):
+                if '.' in number1:
+                        raise ValueError('Invalid input for class; number has decimal point')
+                self.number1 = number1
+                self.operator = operator
+                self.number2 = number2
+                self.is_decimal = is_decimal
+        
+        def calculate(self):
+                result = []
+                carry = 0
+                for i in range(len(self.number1)-1, -1, -1):
+                        letter = self.number1[i]
+                        calc = eval(letter + self.operator + self.number2) + carry
+                        if calc >= 10:
+                                carry = 1
+                                calc -= 10
+                        else:
+                                carry = 0
+                        result.insert(0, str(calc))
+                        if i == 0 and carry == 1:
+                                result.insert(0, '1')
+                if self.is_decimal:
+                        result.insert(-len(self.number1), '.')
+                result = ''.join(result)
+                if result.startswith('.'):
+                        result = '0' + result
+                return result
+
 class Conversion:
         def __init__(self, number, from_base, to_base):
                 self.number = float(number)
@@ -32,21 +62,21 @@ class Conversion:
                                 if whole == 0:
                                         break
                         # Fractional part
-                        fractional = self.number - int(self.number)
+                        fractional = str(self.number).split('.')[1]
                         frac_equations_exist = False
-                        fractional_length = len(str(self.number).split('.')[1])
-                        if fractional != 0.0:
+                        if float(fractional) != 0.0:
                                 frac_equations_exist = True
                                 fractional_digits = ''
                                 fractional_equations = []
                                 while True:
-                                        remainder = int(fractional * self.to_base)
-                                        multiplication = (fractional * self.to_base) - remainder
-                                        equation = str(round(fractional, fractional_length)) + ' * ' + str(self.to_base) + ' = ' + str(round(multiplication, fractional_length)) + '\t' + str(remainder)
+                                        calc = SimpleCalculator(fractional, '*', '2', True).calculate()
+                                        multiplication = '0.' + calc.split('.')[1]
+                                        remainder = calc.split('.')[0]
+                                        equation = fractional + ' * ' + str(self.to_base) + ' = ' + multiplication + '\t' + remainder
                                         fractional_equations.append(equation)
-                                        fractional = multiplication
-                                        fractional_digits += str(remainder)
-                                        if fractional == 0.0:
+                                        fractional = calc.split('.')[1]
+                                        fractional_digits += remainder
+                                        if fractional == '0':
                                                 break
                         # Join parts
                         self.converted_number = ''.join(whole_digits) + '.' +  fractional_digits
@@ -101,6 +131,8 @@ def main():
                        Specify the base to convert to [handles any base]
                        ''')
         args = p.parse_args()
+        args.number = 4192.37761
+        args.conversion_base = 2
         validate_args(args)
         
         # Convert number using Conversion class
@@ -111,4 +143,3 @@ def main():
 
 if __name__ == '__main__':
         main()
-                        
