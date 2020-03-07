@@ -46,6 +46,8 @@ class Conversion:
                 self.fractional_equations = []
         
         def base_converter(self):
+                ARBITRARY_CUTOFF = 50000
+                ARBITRARY_DECIMAL_REPRESENT = 100
                 # Decimal conversion
                 if self.from_base == 10:
                         # Whole part
@@ -76,13 +78,23 @@ class Conversion:
                                         fractional_equations.append(equation)
                                         fractional = calc.split('.')[1]
                                         fractional_digits += remainder
-                                        if fractional == '0':
+                                        if set(fractional) == {'0'}:
+                                                break
+                                        elif len(fractional_equations) > ARBITRARY_CUTOFF:
+                                                print('This number probably produces an infinite binary fraction; aborting program run and truncating results.')
                                                 break
                         # Join parts
-                        self.converted_number = ''.join(whole_digits) + '.' +  fractional_digits
+                        if frac_equations_exist:
+                                if len(fractional_equations) < ARBITRARY_CUTOFF:
+                                        self.converted_number = ''.join(whole_digits) + '.' +  fractional_digits
+                                else:
+                                        self.converted_number = ''.join(whole_digits) + '.' +  fractional_digits[0: ARBITRARY_DECIMAL_REPRESENT] + ' ...'
+                                        
+                        else:
+                                self.converted_number = ''.join(whole_digits)
                         self.whole_equations = whole_equations
-                        if frac_equations_exist == True:
-                                self.fractional_equations = fractional_equations
+                        if frac_equations_exist:
+                                self.fractional_equations = fractional_equations[0: ARBITRARY_DECIMAL_REPRESENT]
         
         def print_results(self):
                 print(str(self.number) + ' = ' + str(self.converted_number) + ' (base ' + str(self.to_base) + ')\n')
@@ -119,7 +131,7 @@ def main():
         
         usage = '''%(prog)s will (currently) convert decimal numbers to other
         base systems using the division method, producing formatted equations
-        and the result as output.
+        and the result as output. It will try to abort infinite calculations.
         '''
         p = argparse.ArgumentParser(description=usage)
         p.add_argument('-n', dest='number', type=float,
@@ -131,8 +143,6 @@ def main():
                        Specify the base to convert to [handles any base]
                        ''')
         args = p.parse_args()
-        args.number = 4192.37761
-        args.conversion_base = 2
         validate_args(args)
         
         # Convert number using Conversion class
