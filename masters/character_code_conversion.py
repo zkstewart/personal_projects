@@ -16,7 +16,9 @@ class WordCode:
                 for letter in self.word:
                         char_code = CharacterCode(letter).convert(code_type)
                         if code_type == 'bin':
-                                output.append('0' + str(char_code)[2:].upper()) # Binary characters have a 0 prefix to make them 8 bits
+                                char_code = str(char_code)[2:].upper() # This strips the Python format string
+                                char_code = '0' * (8 - len(char_code)) + char_code # Binary characters have a 0 prefix to make them 8 bits
+                                output.append(char_code) 
                         elif code_type == 'dec':
                                 output.append(str(char_code).upper()) # Decimals don't have a format string pefix
                         elif code_type == 'oct' and len(char_code) < 5:
